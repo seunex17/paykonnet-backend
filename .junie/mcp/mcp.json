@@ -1,0 +1,11 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "/opt/homebrew/Cellar/php/8.4.8/bin/php",
+            "args": [
+                "/Users/zubdev/Workspace/clients/pay2me/paykonnet_backend/artisan",
+                "boost:mcp"
+            ]
+        }
+    }
+}
