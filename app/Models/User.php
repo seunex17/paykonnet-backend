@@ -3,9 +3,11 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Climactic\Credits\Traits\HasCredits;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -14,7 +16,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, Notifiable;
+    use HasApiTokens, HasCredits, HasFactory, Notifiable;
 
     protected $fillable = [
         'name',
@@ -50,5 +52,13 @@ class User extends Authenticatable
             'id_verified' => 'boolean',
             'next_agent_payment_date' => 'date',
         ];
+    }
+
+    /**
+     * Get the wallets for the user.
+     */
+    public function wallets(): HasMany
+    {
+        return $this->hasMany(Wallet::class);
     }
 }
