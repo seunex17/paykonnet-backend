@@ -15,6 +15,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Mail\VerifyEmailMail;
+use App\Mail\WelcomeMail;
 use App\Models\User;
 use Ichtrojan\Otp\Otp;
 use Illuminate\Http\Request;
@@ -57,6 +58,46 @@ class AuthController extends Controller
         return response()->json([
             'token' => $token,
             'user_data' => $user,
+        ], ResponseAlias::HTTP_OK);
+    }
+
+    public function verifyEmail(Request $request)
+    {
+        $validate = Validator::make($request->all(), [
+            'code' => ['required', 'string', 'min:4', 'max:4'],
+        ]);
+
+        if ($validate->fails()) {
+            return response()->json([
+                'message' => $validate->errors()->first(),
+            ], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        $user = User::where('email', $request->email)->first();
+
+        if (! $user) {
+            return response()->json([
+                'message' => __('email_not_found'),
+            ], ResponseAlias::HTTP_NOT_FOUND);
+        }
+
+        $otp = (new Otp)->validate($user->email, $request->code);
+
+        if (! $otp->status) {
+            return response()->json([
+                'message' => __('invalid_email_otp'),
+            ], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        $user->markEmailAsVerified();
+        $user->is_active = true;
+        $user->save();
+
+        Mail::to($user->email)->send(new WelcomeMail($user));
+
+        return response()->json([
+            'message' => 'Verification Successful',
+            'user' => $user,
         ], ResponseAlias::HTTP_OK);
     }
 }

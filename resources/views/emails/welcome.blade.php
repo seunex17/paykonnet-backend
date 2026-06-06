@@ -50,19 +50,15 @@
             <table style="width: 100%; overflow: hidden; border-radius: 12px; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0;" cellpadding="0" cellspacing="0" role="none">
               <tr>
                 <td class="sm-px-6" style="background-color: #fffffe; padding: 48px 40px; text-align: center"> <a href="{{ url('/') }}">
-                    <img src="{{ asset('images/email/logo.png') }}" width="200" alt="Onway" style="max-width: 100%; vertical-align: middle; margin-left: auto; margin-right: auto;">
+                    <img src="{{ asset('images/email/logo.png') }}" width="100" alt="Paykonnet" style="max-width: 100%; vertical-align: middle; margin-left: auto; margin-right: auto;">
                   </a>
                   <div role="separator" style="line-height: 40px">&zwj;</div>
                   <h1 style="margin: 0 0 12px; font-size: 24px; font-weight: 700; letter-spacing: -0.025em; color: #0f172a;">
-                    Welcome to OnwaysPay!
+                    Welcome to {{ config('app.name') }}
                   </h1>
                   <p style="margin: 0 0 32px; font-size: 16px; line-height: 1.625; color: #475569;">
-                    We're thrilled to have you join our community. OnwaysPay is designed to make your transactions seamless, secure, and lightning fast.
+                    We're thrilled to have you join our community. {{ config('app.name') }} is designed to make your transactions seamless, secure, and lightning fast.
                   </p>
-                  <div style="margin-bottom: 32px; display: inline-block; border-radius: 12px; border-width: 1px; border-color: #f1f5f9; background-color: #f8fafc; padding: 24px;">
-                    <p style="margin: 0 0 4px; font-size: 14px; font-weight: 500; color: #0f172a;">Your Customer ID:</p>
-                    <span style="font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 24px; font-weight: 700; letter-spacing: 0.05em; color: #4f46e5;">{{ $user->customer_id }}</span>
-                  </div>
                   <p style="margin: 0 0 32px; font-size: 16px; line-height: 1.625; color: #475569;">
                     You can now start using your account to send and receive payments, pay bills, and manage your finances with ease.
                   </p>
@@ -74,7 +70,7 @@
                   </p>
                   <div role="separator" style="line-height: 24px">&zwj;</div>
                   <p style="margin: 0; font-size: 14px; font-weight: 500; color: #0f172a;">
-                    The <span style="font-weight: 700; color: #0f172a;">OnwaysPay Team</span>
+                    The <span style="font-weight: 700; color: #0f172a;">{{ config('app.name') }} Team</span>
                   </p>
                 </td>
               </tr>
@@ -83,10 +79,10 @@
               <tr>
                 <td style="padding: 32px 24px;">
                   <p style="margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: #94a3b8;">
-                    &copy; {{ date('Y') }} OnwaysPay. All rights reserved.
+                    &copy; {{ date('Y') }} {{ config('app.name') }}. All rights reserved.
                   </p>
                   <p style="margin-top: 8px; font-size: 12px; color: #94a3b8;">
-                    You're receiving this because you just signed up for OnwaysPay.
+                    You're receiving this because you just signed up for {{ config('app.name') }}.
                   </p>
                 </td>
               </tr>
