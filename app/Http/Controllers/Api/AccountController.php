@@ -431,6 +431,7 @@ class AccountController extends Controller
 
         if ($validate->fails()) {
             \Log::info('Validation failed', ['errors' => $validate->errors()]);
+
             return response()->json([
                 'message' => $validate->errors()->first(),
             ], ResponseAlias::HTTP_BAD_REQUEST);
@@ -438,6 +439,7 @@ class AccountController extends Controller
 
         if (! Hash::check($request->pin, $user->transfer_pin)) {
             \Log::info('Pin check failed', ['pin' => $request->pin, 'hashed' => $user->transfer_pin]);
+
             return response()->json(['message' => 'Transaction pin is invalid'], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
@@ -449,8 +451,9 @@ class AccountController extends Controller
             \Log::info('Flutterwave withdrawal response', ['res' => $response]);
 
             if (isset($response['status']) && $response['status'] === 'success') {
+                $walletAmount = $request->amount * 100;
 
-                $user->creditAdd($request->amount, 'Withdraw from virtual card');
+                $user->creditAdd($walletAmount, 'Withdraw from virtual card');
 
                 Transaction::create([
                     'user_id' => $user->id,
@@ -459,6 +462,7 @@ class AccountController extends Controller
                     'amount' => $request->amount,
                     'status' => 'success',
                     'note' => 'Withdraw from virtual card',
+                    'source_table' => 'virtual_cards',
                 ]);
 
                 return response()->json([
@@ -517,6 +521,7 @@ class AccountController extends Controller
             'amount' => $amount,
             'status' => 'success',
             'note' => 'Wallet funding',
+            'source_table' => 'wallets',
         ]);
 
         return response()->json([
@@ -668,6 +673,7 @@ class AccountController extends Controller
             'amount' => $cost,
             'status' => 'success',
             'note' => 'Upgrade to agent',
+            'source_table' => 'users',
         ]);
 
         return response()->json([
@@ -753,6 +759,7 @@ class AccountController extends Controller
             'amount' => $cost,
             'status' => 'success',
             'note' => 'Added sub agent',
+            'source_table' => 'sub_agents',
         ]);
 
         return response()->json([
