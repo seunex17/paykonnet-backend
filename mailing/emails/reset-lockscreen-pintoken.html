@@ -1,0 +1,80 @@
+---
+bodyClass: bg-slate-50
+preheader: Secure token to reset your OnwaysPay app lockscreen.
+title: Reset Your Lockscreen PIN
+---
+
+<x-main>
+  <div class="bg-slate-50 sm:px-4 font-inter">
+    <table align="center" class="m-0 mx-auto">
+      <tr>
+        <td class="w-[560px] max-w-full">
+          <x-spacer height="40px" />
+
+          <table class="w-full shadow-sm rounded-xl overflow-hidden [border:1px_solid_theme(colors.slate.200)]">
+            <tr>
+              <td class="py-12 px-10 sm:px-6 bg-white text-center">
+                <raw>
+                  <a href="{{ url('/') }}">
+                    <img src="logo.png" src-production="{{ asset('images/email/logo.png') }}" width="100" alt="{{ config('app.name') }}" class="mx-auto">
+                  </a>
+                </raw>
+
+                <x-spacer height="40px" />
+
+                <h1 class="m-0 mb-3 text-2xl font-bold tracking-tight text-slate-900">
+                  Hi <raw>{{ $user->firstname }}</raw>,
+                </h1>
+
+                <p class="m-0 mb-6 text-base/relaxed text-slate-600">
+                  We received a request to reset the lockscreen passcode for your <raw>{{ config('app.name') }}</raw> application. Use the secure verification token below to unlock your application access:
+                </p>
+
+                <!-- Token Display Box -->
+                <div class="bg-slate-50 rounded-lg p-4 my-6 border border-slate-100 inline-block min-w-[200px]">
+                  <p class="m-0 text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Lockscreen Reset Token</p>
+                  <code class="text-2xl font-mono font-bold text-slate-900 tracking-widest"><raw>{{ $token }}</raw></code>
+                </div>
+
+                <p class="m-0 mb-8 text-sm/relaxed text-slate-600 font-medium">
+                  This token is only valid for <span class="text-slate-900 font-bold">10 minutes</span>. Enter this code on your device screen to clear your old lock and set up a new one.
+                </p>
+
+                <x-spacer height="32px" />
+
+                <div class="h-px w-full bg-slate-100"></div>
+
+                <x-spacer height="32px" />
+
+                <p class="m-0 text-sm/relaxed text-amber-600 font-medium bg-amber-50/50 p-4 rounded-lg border border-amber-100/50">
+                  <strong>Security Reminder:</strong> If you did not request this token or didn't intend to modify your mobile application security settings, please disregard this email or reach out to our team immediately.
+                </p>
+
+                <x-spacer height="32px" />
+
+                <p class="m-0 text-sm font-medium text-slate-900">
+                  The <span class="font-bold text-slate-900"><raw>{{ config('app.name') }}</raw> Team</span>
+                </p>
+              </td>
+            </tr>
+          </table>
+
+          <table class="w-full text-center">
+            <tr>
+              <td class="py-8 px-6">
+                <p class="m-0 text-xs uppercase tracking-widest text-slate-400">
+                  &copy; <raw>{{ date('Y') }}</raw> <raw>{{ config('app.name') }}</raw>. All rights reserved.
+                </p>
+                <p class="mt-2 text-xs text-slate-400">
+                  You are receiving this because an app lockscreen unlock sequence was initiated.
+                </p>
+              </td>
+            </tr>
+          </table>
+
+          <x-spacer height="40px" />
+        </td>
+      </tr>
+    </table>
+  </div>
+</x-main>

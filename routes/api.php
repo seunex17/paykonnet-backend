@@ -30,5 +30,17 @@ Route::group(['middleware' => 'auth:sanctum'], function () {
         Route::get('/virtual-card/{card_id}/transactions', [AccountController::class, 'virtualCardTransactions']);
         Route::get('/owe-sell-pay-later', [AccountController::class, 'oweSellPayLater']);
         Route::get('/owe-spl-history', [AccountController::class, 'oweSplHistory']);
+
+        Route::post('/validate-bvn', [AccountController::class, 'validateBvn']);
+        Route::post('/change-account-password', [AccountController::class, 'changeAccountPassword']);
+        Route::post('/request-transfer-pin-reset-token', [AccountController::class, 'requestTransferPinResetToken']);
+        Route::post('/change-transfer-pin', [AccountController::class, 'changeTransferPin']);
+        Route::post('/request-lockscreen-pin-reset-token', [AccountController::class, 'requestLockscreenPinResetToken']);
+        Route::post('/change-lockscreen-pin', [AccountController::class, 'changeLockscreenPin']);
+        Route::post('/delete-account', [AccountController::class, 'deleteAccount']);
+        Route::post('/create-virtual-card', [AccountController::class, 'createVirtualCard']);
+        Route::post('/virtual-card/block/{card_id}', [AccountController::class, 'blockVirtualCard']);
+        Route::post('/virtual-card/unblock/{card_id}', [AccountController::class, 'unblockVirtualCard']);
+        Route::post('/virtual-card/fund', [AccountController::class, 'fundVirtualCard']);
     });
 });
