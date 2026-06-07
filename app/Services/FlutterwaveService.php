@@ -84,4 +84,14 @@ class FlutterwaveService
 
         return $response->json();
     }
+
+    public static function withdrawVirtualCard(array $data, string $id)
+    {
+        $response = Http::withToken(config('flutterwave.secret_key'))
+            ->post(self::BASE_URL."virtual-cards/$id/withdraw", [
+                'amount' => $data['amount'],
+            ]);
+
+        return $response->json();
+    }
 }

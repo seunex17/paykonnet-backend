@@ -2,9 +2,15 @@
 
 use App\Mail\ResetLockscreenPintokenMail;
 use App\Mail\ResetTransferPinTokenMail;
+use App\Models\SellPayLater;
+use App\Models\SubAgent;
 use App\Models\User;
 use App\Models\VirtualCard;
 use App\Models\Wallet;
+use App\Services\FlutterwaveService;
+use App\Services\MonoService;
+use App\Services\OnesignalService;
+use App\Services\QoreIdService;
 use Ichtrojan\Otp\Otp;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -480,6 +486,242 @@ test('it can delete account', function () {
     $this->assertDatabaseMissing('users', [
         'id' => $user->id,
     ]);
+});
+
+test('it can withdraw from virtual card', function () {
+    $user = User::factory()->create([
+        'transfer_pin' => Hash::make('1234'),
+    ]);
+    Sanctum::actingAs($user);
+
+    $cardId = 'card_123';
+    $amount = 100;
+
+    $mockResponse = [
+        'status' => 'success',
+        'message' => 'Withdrawal successful',
+    ];
+
+    Http::fake([
+        "api.flutterwave.com/v3/virtual-cards/$cardId/withdraw" => Http::response($mockResponse, 200),
+    ]);
+
+    $response = $this->postJson('/api/account/virtual-card/withdraw', [
+        'amount' => $amount,
+        'pin' => '1234',
+        'card_id' => $cardId,
+    ]);
+
+    $response->assertOk()
+        ->assertJson(['message' => 'Fund withdrawal successfully']);
+
+    $user->refresh();
+    expect($user->creditBalance())->toEqual((int) ($amount * 100));
+
+    $this->assertDatabaseHas('transactions', [
+        'user_id' => $user->id,
+        'type' => 'credit',
+        'amount' => $amount,
+        'note' => 'Withdraw from virtual card',
+    ]);
+});
+
+test('it can fund wallet and send notification', function () {
+    $user = User::factory()->create(['firstname' => 'John']);
+    Sanctum::actingAs($user);
+
+    Http::fake([
+        'onesignal.com/api/v1/notifications' => Http::response(['id' => 'notif_123'], 200),
+    ]);
+
+    $amount = 10000; // Passed to controller
+    $response = $this->postJson('/api/account/func-wallet', [
+        'ref' => 'REF123',
+        'amount' => $amount,
+    ]);
+
+    $response->assertOk()
+        ->assertJson(['message' => 'Your wallet has been topped-up with 100']);
+
+    $user->refresh();
+    expect($user->creditBalance())->toEqual($amount); // Stores exactly what is added
+
+    $this->assertDatabaseHas('transactions', [
+        'user_id' => $user->id,
+        'type' => 'credit',
+        'amount' => 100, // 10000 / 100
+        'note' => 'Wallet funding',
+    ]);
+});
+
+test('it can verify id', function () {
+    $user = User::factory()->create(['id_verified' => false]);
+    Sanctum::actingAs($user);
+
+    Http::fake([
+        'api.qoreid.com/token' => Http::response(['accessToken' => 'fake_token'], 200),
+        'api.qoreid.com/v1/ng/identities/*' => Http::response(['status' => 'success'], 200),
+    ]);
+
+    $response = $this->postJson('/api/account/id-verification', [
+        'type' => 'drivers-license',
+        'number' => '12345678901',
+    ]);
+
+    $response->assertOk()
+        ->assertJson(['message' => 'ID verification successful!']);
+
+    $user->refresh();
+    expect($user->id_verified)->toBeTrue();
+    expect($user->id_type)->toBe('drivers-license');
+    expect($user->id_number)->toBe('12345678901');
+});
+
+test('it can update profile', function () {
+    $user = User::factory()->create(['id_verified' => false]);
+    Sanctum::actingAs($user);
+
+    $response = $this->postJson('/api/account/update-profile', [
+        'firstname' => 'UpdatedName',
+        'lastname' => 'UpdatedLast',
+    ]);
+
+    $response->assertOk()
+        ->assertJson(['message' => 'Your account has been updated successfully!']);
+
+    $user->refresh();
+    expect($user->firstname)->toBe('UpdatedName');
+    expect($user->lastname)->toBe('UpdatedLast');
+});
+
+test('it can upgrade to agent', function () {
+    $user = User::factory()->create();
+    $user->creditAdd(100000, 'Test credit');
+    Sanctum::actingAs($user);
+
+    $response = $this->postJson('/api/account/upgrade-to-agent', [
+        'level' => '1',
+    ]);
+
+    $response->assertOk()
+        ->assertJson(['message' => 'Upgrade to agent successful!']);
+
+    $user->refresh();
+    expect((int) $user->agent_level)->toBe(1);
+    expect($user->creditBalance())->toEqual(0);
+
+    $this->assertDatabaseHas('transactions', [
+        'user_id' => $user->id,
+        'type' => 'debit',
+        'amount' => 100000,
+        'note' => 'Upgrade to agent',
+    ]);
+});
+
+test('it can cancel agent subscription', function () {
+    $user = User::factory()->create([
+        'agent_level' => 1,
+        'next_agent_payment_date' => now()->addYear(),
+    ]);
+    Sanctum::actingAs($user);
+
+    $response = $this->postJson('/api/account/cancel-agent-subscription');
+
+    $response->assertOk()
+        ->assertJson(['message' => 'Subscription has been canceled']);
+
+    $user->refresh();
+    expect((int) $user->agent_level)->toBe(0);
+    expect($user->next_agent_payment_date)->toBeNull();
+});
+
+test('it can add sub agent', function () {
+    $user = User::factory()->create();
+    $user->creditAdd(1000, 'Test credit');
+    $subAgentUser = User::factory()->create(['email' => 'subagent@example.com']);
+    Sanctum::actingAs($user);
+
+    $response = $this->postJson('/api/account/add-sub-agent', [
+        'agent_level' => '2',
+        'email' => 'subagent@example.com',
+    ]);
+
+    $response->assertOk()
+        ->assertJson(['message' => 'Sub agent has been added successfully']);
+
+    $user->refresh();
+    expect($user->creditBalance())->toEqual(0);
+
+    $this->assertDatabaseHas('sub_agents', [
+        'user_id' => $user->id,
+        'agent_id' => $subAgentUser->id,
+        'agent_level' => '2',
+    ]);
+});
+
+test('it can connect mono account', function () {
+    $user = User::factory()->create();
+    Sanctum::actingAs($user);
+
+    $monoId = 'mono_123';
+    $mockResponse = [
+        'status' => 'successful',
+        'data' => ['id' => $monoId],
+    ];
+
+    Http::fake([
+        'api.withmono.com/v2/accounts/auth' => Http::response($mockResponse, 200),
+    ]);
+
+    $response = $this->postJson('/api/account/mono/connect', [
+        'code' => 'test_code',
+    ]);
+
+    $response->assertOk()
+        ->assertJson(['message' => 'Account connected successfully']);
+
+    $user->refresh();
+    expect($user->mono_id)->toBe($monoId);
+});
+
+test('it can create mono mandate', function () {
+    $user = User::factory()->create();
+    Sanctum::actingAs($user);
+
+    $mockResponse = [
+        'status' => 'successful',
+        'data' => ['mandate_id' => 'mandate_123'],
+    ];
+
+    Http::fake([
+        'api.withmono.com/v2/payments/initiate' => Http::response($mockResponse, 200),
+    ]);
+
+    $response = $this->postJson('/api/account/mono/create-mandate');
+
+    $response->assertOk()
+        ->assertJson(['mandate_id' => 'mandate_123']);
+});
+
+test('it can repay owe spl', function () {
+    $user = User::factory()->create();
+    $user->creditAdd(500, 'Test credit');
+    SellPayLater::create([
+        'user_id' => $user->id,
+        'product' => 'Test Product',
+        'amount' => 500,
+        'paid' => false,
+    ]);
+    Sanctum::actingAs($user);
+
+    $response = $this->postJson('/api/account/repay-owe-spl');
+
+    $response->assertOk()
+        ->assertJson(['message' => 'Transaction successful']);
+
+    $user->refresh();
+    expect($user->creditBalance())->toEqual(0);
+    expect(SellPayLater::where('user_id', $user->id)->first()->paid)->toBeTrue();
 });
 
 test('it returns unauthorized if user is not logged in when deleting account', function () {

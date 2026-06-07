@@ -16,9 +16,6 @@ class Transaction extends Model
         'source_table',
     ];
 
-    /**
-     * @var array<int, string>
-     */
     protected $casts = [
         'user_id' => 'string',
         'type' => 'string',

@@ -42,5 +42,15 @@ Route::group(['middleware' => 'auth:sanctum'], function () {
         Route::post('/virtual-card/block/{card_id}', [AccountController::class, 'blockVirtualCard']);
         Route::post('/virtual-card/unblock/{card_id}', [AccountController::class, 'unblockVirtualCard']);
         Route::post('/virtual-card/fund', [AccountController::class, 'fundVirtualCard']);
+        Route::post('/virtual-card/withdraw', [AccountController::class, 'withdrawVirtualCard']);
+        Route::post('/func-wallet', [AccountController::class, 'fundWallet']);
+        Route::post('/id-verification', [AccountController::class, 'idVerification']);
+        Route::post('/update-profile', [AccountController::class, 'updateProfile']);
+        Route::post('/upgrade-to-agent', [AccountController::class, 'upgradeAgent']);
+        Route::post('/cancel-agent-subscription', [AccountController::class, 'cancelAgentSubscription']);
+        Route::post('/add-sub-agent', [AccountController::class, 'addSubAgent']);
+        Route::post('/mono/connect', [AccountController::class, 'connectMonoAccount']);
+        Route::post('/mono/create-mandate', [AccountController::class, 'createMonoMandate']);
+        Route::post('/repay-owe-spl', [AccountController::class, 'repayOweSpl']);
     });
 });
