@@ -96,9 +96,14 @@ class BillsController extends Controller
         ], ResponseAlias::HTTP_OK);
     }
 
-    public function allDataLoan(): JsonResponse
+    public function allDataLoan(Request $request)
     {
-        return $this->notImplemented();
+        $dataLoans = DataLoan::where('user_id', $request->user()->id)
+            ->latest()
+            ->take(100)
+            ->get();
+
+        return response()->json($dataLoans, ResponseAlias::HTTP_OK);
     }
 
     public function loadBettingCompanies(): JsonResponse

@@ -3,14 +3,44 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\DataBank;
 use Illuminate\Http\JsonResponse;
-use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class DataShareController extends Controller
 {
-    public function dataBanks(): JsonResponse
+    public function dataBanks(Request $request)
     {
-        return $this->notImplemented();
+        $balances = DataBank::where('receiver_id', $request->user()->id)
+            ->where('is_valid', true)
+            ->whereIn('provider_id', [1, 2, 3, 4])
+            ->groupBy('provider_id')
+            ->selectRaw('provider_id, SUM(data_value) as total_data')
+            ->pluck('total_data', 'provider_id');
+
+        return response()->json([
+            [
+                'name' => 'MTN',
+                'balance' => (string) ($balances->get(1) ?? 0),
+                'image' => 'mtn.png',
+            ],
+            [
+                'name' => 'Glo',
+                'balance' => (string) ($balances->get(4) ?? 0),
+                'image' => 'glo.png',
+            ],
+            [
+                'name' => 'Airtel',
+                'balance' => (string) ($balances->get(2) ?? 0),
+                'image' => 'airtel.png',
+            ],
+            [
+                'name' => '9Mobile',
+                'balance' => (string) ($balances->get(3) ?? 0),
+                'image' => '9mobile.png',
+            ],
+        ], ResponseAlias::HTTP_OK);
     }
 
     public function sentDataBanks(): JsonResponse
@@ -32,6 +62,6 @@ class DataShareController extends Controller
     {
         return response()->json([
             'message' => 'Not implemented',
-        ], Response::HTTP_NOT_IMPLEMENTED);
+        ], ResponseAlias::HTTP_NOT_IMPLEMENTED);
     }
 }
