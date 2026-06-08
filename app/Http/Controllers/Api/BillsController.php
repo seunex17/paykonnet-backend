@@ -8,9 +8,11 @@ use App\Models\CashLoan;
 use App\Models\DataLoan;
 use App\Models\DataLoanList;
 use App\Models\ElectricBillService;
+use App\Models\Transaction;
 use App\Services\ClubConnectService;
 use App\Services\VTPassService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class BillsController extends Controller
@@ -159,5 +161,62 @@ class BillsController extends Controller
         $response = VTPassService::getJambVariationCode();
 
         return response()->json($response, ResponseAlias::HTTP_OK);
+    }
+
+    public function purchaseAirtime(Request $request)
+    {
+        $user = $request->user();
+        $inputs = $request->all();
+        $reference = 'Airtime_'.now()->timestamp;
+        $inputs['references'] = $reference;
+
+        $amount = $inputs['amount'] ?? null;
+        $phone = $inputs['phone_no'] ?? null;
+        $pin = $inputs['pin'] ?? null;
+        $productId = $inputs['product'] ?? null;
+
+        if (! is_numeric($amount)) {
+            return response()->json(['message' => 'Invalid amount entered'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if (! Hash::check($pin, $user->transfer_pin)) {
+            return response()->json(['message' => 'Transaction pin is invalid'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if (! $user->hasCredits($amount)) {
+            return response()->json(['message' => 'Insufficient account balance please refill and try again'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        // 4. Hit the ClubConnect Vendor API Endpoint wrapper
+        $response = ClubConnectService::purchaseMobileAirtime($inputs);
+        if (! $request['error']) {
+            return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        $user->creditDeduct($amount, 'Purchase Airtime');
+        $orderStatus = $response['status'] ?? '';
+
+        if (in_array($orderStatus, ['ORDER_RECEIVED', 'ORDER_PROCESSED', 'ORDER_COMPLETED'])) {
+            $airtimeTxn = AirtimeTopup::create([
+                'user_id' => $user->id,
+                'references' => $reference,
+                'provider_id' => $productId,
+                'amount' => $amount,
+                'phone_no' => $phone,
+            ]);
+
+            Transaction::create([
+                'user_id' => $user->id,
+                'type' => 'debit',
+                'references' => $reference,
+                'amount' => $amount,
+                'status' => 'success',
+                'note' => $orderStatus,
+            ]);
+
+            return response()->json($airtimeTxn, ResponseAlias::HTTP_OK);
+        }
+
+        return response()->json(['message' => 'We encountered some problems please try again'], ResponseAlias::HTTP_BAD_REQUEST);
     }
 }

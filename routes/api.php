@@ -80,5 +80,7 @@ Route::group(['middleware' => 'auth:sanctum'], function () {
         Route::get('/fetch-unpaid-cash-loan', [BillsController::class, 'fetchUnpaidCashLoan']);
         Route::get('/all-cash-loan', [BillsController::class, 'allCashLoan']);
         Route::get('/list-janb-service', [BillsController::class, 'listJambService']);
+
+        Route::post('/purchase-airtime', [BillsController::class, 'purchaseAirtime']);
     });
 });
