@@ -2,6 +2,10 @@
 
 use App\Http\Controllers\Api\AccountController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\BillsController;
+use App\Http\Controllers\Api\DataShareController;
+use App\Http\Controllers\Api\TransactionController;
+use App\Http\Controllers\Api\TransferController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -52,5 +56,29 @@ Route::group(['middleware' => 'auth:sanctum'], function () {
         Route::post('/mono/connect', [AccountController::class, 'connectMonoAccount']);
         Route::post('/mono/create-mandate', [AccountController::class, 'createMonoMandate']);
         Route::post('/repay-owe-spl', [AccountController::class, 'repayOweSpl']);
+    });
+
+    Route::prefix('/main')->group(function () {
+        Route::get('/list-all-banks', [TransferController::class, 'listAllBanks']);
+        Route::get('/recent-airtime-topup', [BillsController::class, 'getRecentAirtimeTopup']);
+        Route::get('/transactions', [TransactionController::class, 'listTransactions']);
+        Route::get('/fetch-electric-service-codes', [BillsController::class, 'fetchElectricServiceCode']);
+        Route::get('/verify-added-card', [TransactionController::class, 'verifyAddedCard']);
+        Route::get('/list-debit-cards', [TransactionController::class, 'listDebitCards']);
+        Route::get('/fetch-unpaid-data-loan', [BillsController::class, 'fetchUnpaidDataLoan']);
+        Route::get('/fetch-single-data-loan/{dataLoan}', [BillsController::class, 'fetchSingleDataLoan']);
+        Route::get('/recent-activity', [TransactionController::class, 'recentActivity']);
+        Route::get('/fetch-data-loan-list', [BillsController::class, 'fetchDataLoanList']);
+        Route::get('/fetch-data-loan-length', [BillsController::class, 'fetchDataLoanLength']);
+        Route::get('/all-data-loan', [BillsController::class, 'allDataLoan']);
+        Route::get('/data-banks', [DataShareController::class, 'dataBanks']);
+        Route::get('/sent-data-banks', [DataShareController::class, 'sentDataBanks']);
+        Route::get('/receive-data-banks', [DataShareController::class, 'receivedDataBanks']);
+        Route::get('/my-data-banks/{dataBank}', [DataShareController::class, 'myDataBanks'])->whereNumber('dataBank');
+        Route::get('/load-betting-companies', [BillsController::class, 'loadBettingCompanies']);
+        Route::get('/fetch-cash-loan-length', [BillsController::class, 'fetchCashLoanLength']);
+        Route::get('/fetch-unpaid-cash-loan', [BillsController::class, 'fetchUnpaidCashLoan']);
+        Route::get('/all-cash-loan', [BillsController::class, 'allCashLoan']);
+        Route::get('/list-janb-service', [BillsController::class, 'listJambService']);
     });
 });
