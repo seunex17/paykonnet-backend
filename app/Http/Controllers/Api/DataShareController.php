@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\DataBank;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
@@ -43,25 +42,35 @@ class DataShareController extends Controller
         ], ResponseAlias::HTTP_OK);
     }
 
-    public function sentDataBanks(): JsonResponse
+    public function sentDataBanks(Request $request)
     {
-        return $this->notImplemented();
+        $shares = DataBank::where('sender_id', $request->user()->id)
+            ->latest()
+            ->take(100)
+            ->get();
+
+        return response()->json($shares, ResponseAlias::HTTP_OK);
     }
 
-    public function receivedDataBanks(): JsonResponse
+    public function receivedDataBanks(Request $request)
     {
-        return $this->notImplemented();
+        $shares = DataBank::where('receiver_id', $request->user()->id)
+            ->latest()
+            ->take(100)
+            ->get();
+
+        return response()->json($shares, ResponseAlias::HTTP_OK);
     }
 
-    public function myDataBanks(int $dataBank): JsonResponse
+    public function myDataBanks(Request $request, $provider)
     {
-        return $this->notImplemented();
-    }
+        $shares = DataBank::where('receiver_id', $request->user()->id)
+            ->where('is_valid', true)
+            ->where('provider_id', $provider)
+            ->latest()
+            ->take(100)
+            ->get();
 
-    private function notImplemented(): JsonResponse
-    {
-        return response()->json([
-            'message' => 'Not implemented',
-        ], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+        return response()->json($shares, ResponseAlias::HTTP_OK);
     }
 }

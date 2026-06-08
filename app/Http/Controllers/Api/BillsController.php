@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AirtimeTopup;
+use App\Models\CashLoan;
 use App\Models\DataLoan;
 use App\Models\DataLoanList;
 use App\Models\ElectricBillService;
-use Illuminate\Http\JsonResponse;
+use App\Services\ClubConnectService;
+use App\Services\VTPassService;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
@@ -106,35 +108,56 @@ class BillsController extends Controller
         return response()->json($dataLoans, ResponseAlias::HTTP_OK);
     }
 
-    public function loadBettingCompanies(): JsonResponse
+    public function loadBettingCompanies(Request $request)
     {
-        return $this->notImplemented();
+        $data = [];
+
+        $response = ClubConnectService::loadBettingCompanies();
+        $plans = $response['BETTING_COMPANY'] ?? null;
+
+        if ($plans) {
+            foreach ($plans as $plan) {
+                $data[] = [
+                    'name' => ucwords(str_replace('-', ' ', $plan['PRODUCT_CODE'])),
+                    'code' => $plan['PRODUCT_CODE'],
+                ];
+            }
+        }
+
+        return response()->json($data, ResponseAlias::HTTP_OK);
     }
 
-    public function fetchCashLoanLength(): JsonResponse
-    {
-        return $this->notImplemented();
-    }
-
-    public function fetchUnpaidCashLoan(): JsonResponse
-    {
-        return $this->notImplemented();
-    }
-
-    public function allCashLoan(): JsonResponse
-    {
-        return $this->notImplemented();
-    }
-
-    public function listJambService(): JsonResponse
-    {
-        return $this->notImplemented();
-    }
-
-    private function notImplemented(): JsonResponse
+    public function fetchCashLoanLength()
     {
         return response()->json([
-            'message' => 'Not implemented',
-        ], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+            'length' => '30 days',
+        ], ResponseAlias::HTTP_OK);
+    }
+
+    public function fetchUnpaidCashLoan(Request $request)
+    {
+        $cashLoan = CashLoan::with('debitCard')
+            ->where('user_id', $request->user()->id)
+            ->where('fully_paid', false)
+            ->first();
+
+        return response()->json($cashLoan ?? [], ResponseAlias::HTTP_OK);
+    }
+
+    public function allCashLoan(Request $request)
+    {
+        $cashLoans = CashLoan::where('user_id', $request->user()->id)
+            ->latest()
+            ->take(100)
+            ->get();
+
+        return response()->json($cashLoans, ResponseAlias::HTTP_OK);
+    }
+
+    public function listJambService(Request $request)
+    {
+        $response = VTPassService::getJambVariationCode();
+
+        return response()->json($response, ResponseAlias::HTTP_OK);
     }
 }
