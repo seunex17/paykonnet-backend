@@ -13,6 +13,7 @@
 
 namespace App\Services;
 
+use App\Models\User;
 use Random\RandomException;
 
 class UtilityService
@@ -50,5 +51,16 @@ class UtilityService
         shuffle($password);
 
         return implode('', $password);
+    }
+
+    public static function agentPercent(User $user, float $cost): float
+    {
+        $agentLevel = $user->agent_level;
+
+        return match ((int) $agentLevel) {
+            1 => ($cost / 100) * 5,
+            2 => ($cost / 100) * 2.5,
+            default => ($cost / 100) * 1.5,
+        };
     }
 }

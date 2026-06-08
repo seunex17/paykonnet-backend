@@ -8,8 +8,12 @@ use App\Models\CashLoan;
 use App\Models\DataLoan;
 use App\Models\DataLoanList;
 use App\Models\ElectricBillService;
+use App\Models\MobileDataTopup;
+use App\Models\SellPayLater;
+use App\Models\SubAgent;
 use App\Models\Transaction;
 use App\Services\ClubConnectService;
+use App\Services\UtilityService;
 use App\Services\VTPassService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -161,6 +165,220 @@ class BillsController extends Controller
         $response = VTPassService::getJambVariationCode();
 
         return response()->json($response, ResponseAlias::HTTP_OK);
+    }
+
+    public function listMobileDataPlans(Request $request)
+    {
+        $user = $request->user();
+        $product = $request->input('product');
+        $service = config("smeplug.airtimeProductArray.{$product}");
+        $data = [];
+
+        $response = ClubConnectService::listMobileDataPlans();
+
+        if ($response['error']) {
+            return response()->json($response['message'], ResponseAlias::HTTP_NOT_FOUND);
+        }
+
+        $plans = $response['MOBILE_NETWORK'][$service][0]['PRODUCT'] ?? null;
+
+        if ($plans) {
+            foreach ($plans as $plan) {
+                $data[] = [
+                    'id' => $plan['PRODUCT_ID'],
+                    'name' => $plan['PRODUCT_NAME'],
+                    'price' => number_format($plan['PRODUCT_AMOUNT'], 0, '', ''),
+                ];
+            }
+        }
+
+        return response()->json($data, ResponseAlias::HTTP_OK);
+    }
+
+    public function purchaseMobileDataPlan(Request $request)
+    {
+        $user = $request->user();
+        $inputs = $request->all();
+        $reference = 'MobileData_'.time();
+        $inputs['references'] = $reference;
+
+        $originalAmount = $inputs['amount'] ?? null;
+        $phone = $inputs['phone_no'] ?? null;
+        $pin = $inputs['pin'] ?? null;
+        $spl = $inputs['spl'] ?? 'no';
+        $productId = $inputs['product'] ?? null;
+        $plan = $inputs['plan'] ?? null;
+
+        if (! is_numeric($originalAmount)) {
+            return response()->json(['message' => 'Invalid amount entered'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        $amount = (float) $originalAmount;
+        if ((int) $user->agent_level !== 0) {
+            $amount -= UtilityService::agentPercent($user, $amount);
+        } else {
+            $isSubAgent = SubAgent::where('agent_id', $user->id)->exists();
+            if ($isSubAgent) {
+                $amount -= UtilityService::agentPercent($user, $amount);
+            }
+        }
+
+        if (! Hash::check($pin, $user->transfer_pin)) {
+            return response()->json(['message' => 'Transaction pin is invalid'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if ($amount < 0) {
+            return response()->json(['message' => 'Invalid amount entered'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        $currentBalance = (float) $user->creditBalance();
+
+        if ($spl === 'no' && $currentBalance < $amount) {
+            return response()->json(['message' => 'Insufficient account balance please refill and try again'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if ($spl === 'yes') {
+            if ($currentBalance < 25000) {
+                return response()->json(['message' => 'Your bal must be at least 25000 to use this feature'], ResponseAlias::HTTP_BAD_REQUEST);
+            }
+        }
+
+        if ($spl === 'no') {
+            $user->creditDeduct($amount);
+        }
+
+        $postDebitBalance = (float) $user->creditBalance();
+
+        if ($spl === 'yes' || $postDebitBalance >= 0) {
+            $response = ClubConnectService::purchaseMobileDataPlans($inputs);
+
+            if ($response['error']) {
+                if ($request->spl == 'no') {
+                    $user->creditAdd($amount);
+                }
+
+                return response()->json($response['message'], ResponseAlias::HTTP_OK);
+            }
+
+            $orderStatus = $response['status'] ?? '';
+
+            if (in_array($orderStatus, ['ORDER_RECEIVED', 'ORDER_PROCESSED', 'ORDER_COMPLETED'])) {
+                $mobileData = MobileDataTopup::create([
+                    'user_id' => $user->id,
+                    'references' => $reference,
+                    'provider_id' => $productId,
+                    'amount' => $amount,
+                    'phone_no' => $phone,
+                    'details' => $orderStatus,
+                    'plan' => $plan,
+                ]);
+
+                if ($spl === 'yes') {
+                    SellPayLater::create([
+                        'user_id' => $user->id,
+                        'product' => $plan,
+                        'amount' => $amount,
+                    ]);
+                }
+
+                Transaction::create([
+                    'user_id' => $user->id,
+                    'type' => 'debit',
+                    'references' => $reference,
+                    'amount' => $amount,
+                    'status' => 'success',
+                    'note' => 'Purchase '.$orderStatus,
+                ]);
+
+                return response()->json($mobileData, ResponseAlias::HTTP_OK);
+            }
+
+            if ($spl === 'no') {
+                $user->creditAdd($amount);
+            }
+
+            return response()->json(['message' => 'We encountered some problems please try again'], 422);
+        }
+
+        return response()->json(['message' => 'Fraud transaction detected'], 422);
+    }
+
+    public function listCablePlans(Request $request)
+    {
+        // TODO: Implement listCablePlans
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function verifySmartCardNumber(Request $request)
+    {
+        // TODO: Implement verifySmartCardNumber
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function purchaseCableSubscription(Request $request)
+    {
+        // TODO: Implement purchaseCableSubscription
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function verifyElectricityBMeterNumber(Request $request)
+    {
+        // TODO: Implement verifyElectricityBMeterNumber
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function purchaseElectricityBill(Request $request)
+    {
+        // TODO: Implement purchaseElectricityBill
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function createNewDataLoan(Request $request)
+    {
+        // TODO: Implement createNewDataLoan
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function checkDataLoanEligible(Request $request)
+    {
+        // TODO: Implement checkDataLoanEligible
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function verifyBettingCustomer(Request $request)
+    {
+        // TODO: Implement verifyBettingCustomer
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function fundBettingWallet(Request $request)
+    {
+        // TODO: Implement fundBettingWallet
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function checkCashLoanEligible(Request $request)
+    {
+        // TODO: Implement checkCashLoanEligible
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function createNewCashLoan(Request $request)
+    {
+        // TODO: Implement createNewCashLoan
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function verifyJambProfileId(Request $request)
+    {
+        // TODO: Implement verifyJambProfileId
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function purchaseJambPin(Request $request)
+    {
+        // TODO: Implement purchaseJambPin
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
     }
 
     public function purchaseAirtime(Request $request)

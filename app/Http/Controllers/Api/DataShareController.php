@@ -73,4 +73,28 @@ class DataShareController extends Controller
 
         return response()->json($shares, ResponseAlias::HTTP_OK);
     }
+
+    public function verifyUserName(Request $request)
+    {
+        // TODO: Implement verifyUserName
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function shareData(Request $request)
+    {
+        // TODO: Implement shareData
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function withdrawData(Request $request)
+    {
+        // TODO: Implement withdrawData
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function shareDataAgent(Request $request)
+    {
+        // TODO: Implement shareDataAgent
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
 }

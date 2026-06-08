@@ -95,4 +95,22 @@ class TransactionController extends Controller
 
         return response()->json($activity ?? [], ResponseAlias::HTTP_OK);
     }
+
+    public function generateUssdCards(Request $request)
+    {
+        // TODO: Implement generateUssdCards
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function loanRepayment(Request $request)
+    {
+        // TODO: Implement loanRepayment
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
+
+    public function cashLoanRepayment(Request $request)
+    {
+        // TODO: Implement cashLoanRepayment
+        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+    }
 }
