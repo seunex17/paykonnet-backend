@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AirtimeTopup;
 use App\Models\DataLoan;
+use App\Models\DataLoanList;
 use App\Models\ElectricBillService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -73,14 +74,26 @@ class BillsController extends Controller
         ], ResponseAlias::HTTP_OK);
     }
 
-    public function fetchDataLoanList(): JsonResponse
+    public function fetchDataLoanList(Request $request)
     {
-        return $this->notImplemented();
+        $product = $request->query('product');
+
+        if (! $product) {
+            return response()->json([], ResponseAlias::HTTP_NOT_FOUND);
+        }
+
+        $dataLoansPlan = DataLoanList::where('service_id', $product)->get();
+
+        return response()->json($dataLoansPlan, ResponseAlias::HTTP_OK);
     }
 
-    public function fetchDataLoanLength(): JsonResponse
+    public function fetchDataLoanLength(Request $request)
     {
-        return $this->notImplemented();
+        $loanDuration = 30;
+
+        return response()->json([
+            'length' => $loanDuration.' days',
+        ], ResponseAlias::HTTP_OK);
     }
 
     public function allDataLoan(): JsonResponse

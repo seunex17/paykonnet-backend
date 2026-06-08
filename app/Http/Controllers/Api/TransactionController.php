@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\DebitCard;
 use App\Models\Transaction;
 use App\Services\PaystackService;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
@@ -88,13 +87,12 @@ class TransactionController extends Controller
         ], ResponseAlias::HTTP_OK);
     }
 
-    public function recentActivity(): JsonResponse
+    public function recentActivity(Request $request)
     {
-        return $this->notImplemented();
-    }
+        $activity = Transaction::where('user_id', $request->user()->id)
+            ->latest()
+            ->first();
 
-    private function notImplemented(): JsonResponse
-    {
-        return response()->json([]);
+        return response()->json($activity ?? [], ResponseAlias::HTTP_OK);
     }
 }
