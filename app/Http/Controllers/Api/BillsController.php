@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AirtimeTopup;
+use App\Models\CableSubscription;
 use App\Models\CashLoan;
 use App\Models\DataLoan;
 use App\Models\DataLoanList;
 use App\Models\ElectricBillService;
+use App\Models\ElectricityBill;
 use App\Models\MobileDataTopup;
 use App\Models\SellPayLater;
 use App\Models\SubAgent;
@@ -17,6 +19,7 @@ use App\Services\UtilityService;
 use App\Services\VTPassService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class BillsController extends Controller
@@ -305,38 +308,291 @@ class BillsController extends Controller
 
     public function listCablePlans(Request $request)
     {
-        // TODO: Implement listCablePlans
-        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+        $response = VTPassService::getCableTvVariationCode($request->all());
+
+        if ($response['error']) {
+            return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        return response()->json($response, ResponseAlias::HTTP_OK);
     }
 
     public function verifySmartCardNumber(Request $request)
     {
-        // TODO: Implement verifySmartCardNumber
-        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+        $response = VTPassService::verifySmartCardNumber($request->all());
+
+        if ($response['error']) {
+            return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if (! empty($response['content']['WrongBillersCode'])) {
+            $errorMessage = $response['content']['error'] ?? 'Invalid smart card or biller details';
+
+            return response()->json(['message' => $errorMessage], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        return response()->json($response, ResponseAlias::HTTP_OK);
     }
 
     public function purchaseCableSubscription(Request $request)
     {
-        // TODO: Implement purchaseCableSubscription
-        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+        $user = $request->user();
+        $inputs = $request->all();
+        $reference = 'Cable_'.now()->timestamp;
+        $inputs['references'] = $reference;
+
+        $amount = $inputs['price'] ?? null;
+        $smartCardNumber = $inputs['smart_card_no'] ?? null;
+        $pin = $inputs['pin'] ?? null;
+        $service = $inputs['service'] ?? null;
+        $productId = $inputs['product'] ?? null;
+        $phone = $inputs['phone_no'] ?? null;
+        $plan = $inputs['plan'] ?? null;
+
+        if (! is_numeric($amount)) {
+            return response()->json(['message' => 'Invalid amount entered'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if (! Hash::check($pin, $user->transfer_pin)) {
+            return response()->json(['message' => 'Transaction pin is invalid'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if ((float) $amount < 0) {
+            return response()->json(['message' => 'Invalid amount entered'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if (! $user->hasCredits($amount)) {
+            return response()->json(['message' => 'Insufficient account balance please refill and try again'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        $user->creditDeduct($amount);
+
+        if ((float) $user->creditBalance() >= 0) {
+            $response = VTPassService::purchaseCableBill($inputs);
+
+            if ($response['error']) {
+                $user->creditAdd($amount);
+
+                return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
+            }
+
+            if (($response['code'] ?? '') !== '000') {
+                $user->creditAdd($amount);
+
+                return response()->json(['message' => 'We are having problems processing this request please try again later.'], ResponseAlias::HTTP_BAD_REQUEST);
+            }
+
+            if (($response['response_description'] ?? '') !== 'TRANSACTION SUCCESSFUL') {
+                $user->creditAdd($amount);
+
+                return response()->json(['message' => $response['response_description']], ResponseAlias::HTTP_BAD_REQUEST);
+            }
+
+            $transactionType = $response['content']['transactions']['type'] ?? 'Cable TV';
+
+            $cable = CableSubscription::create([
+                'user_id' => $user->id,
+                'references' => $reference,
+                'provider_id' => $productId,
+                'amount' => $amount,
+                'phone_no' => $phone,
+                'smart_card_no' => $smartCardNumber,
+                'details' => "{$transactionType} ($service)",
+                'product' => $service,
+                'package' => $plan,
+            ]);
+
+            Transaction::create([
+                'user_id' => $user->id,
+                'type' => 'debit',
+                'references' => $reference,
+                'amount' => $amount,
+                'status' => 'success',
+                'note' => "Purchase {$transactionType} {$service}",
+            ]);
+
+            return response()->json($cable, 200);
+        }
+
+        return response()->json(['message' => 'Fraud transaction detected.'], ResponseAlias::HTTP_BAD_REQUEST);
     }
 
     public function verifyElectricityBMeterNumber(Request $request)
     {
-        // TODO: Implement verifyElectricityBMeterNumber
-        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+        $inputs = $request->all();
+        $inputs['type'] = $inputs['variation_code'] ?? null;
+
+        $response = VTPassService::verifyElectricityMeterNumber($inputs);
+
+        if ($response['error']) {
+            return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if (isset($response['content']['error'])) {
+            return response()->json([
+                'message' => $response['content']['error'],
+            ], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        return response()->json($response, ResponseAlias::HTTP_OK);
     }
 
     public function purchaseElectricityBill(Request $request)
     {
-        // TODO: Implement purchaseElectricityBill
-        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+        $user = $request->user();
+        $inputs = $request->all();
+        $reference = 'Electricity_'.now()->timestamp;
+        $inputs['request_id'] = $reference;
+
+        $amount = $inputs['amount'] ?? null;
+        $serviceId = $inputs['serviceID'] ?? null;
+        $pin = $inputs['pin'] ?? null;
+        $phone = $inputs['phone'] ?? null;
+        $meterNo = $inputs['billersCode'] ?? null;
+
+        if (! is_numeric($amount)) {
+            return response()->json(['message' => 'Invalid amount entered'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if (! Hash::check($pin, $user->transfer_pin)) {
+            return response()->json(['message' => 'Transaction pin is invalid'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if ((float) $amount < 0) {
+            return response()->json(['message' => 'Invalid amount entered'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if ((float) $amount < 500) {
+            return response()->json(['message' => 'Recharge amount must be at least N500'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if (! $user->hasCredits($amount)) {
+            return response()->json(['message' => 'Insufficient account balance please refill and try again'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        $provider = ElectricBillService::where('code', $serviceId)->first();
+        $providerId = $provider?->id;
+
+        $user->creditDeduct($amount);
+
+        if ($user->creditBalance() >= 0) {
+            $response = VTPassService::purchaseElectricity($inputs);
+
+            if (isset($response['content']['transactions'])) {
+                if (($response['response_description'] ?? '') === 'TRANSACTION SUCCESSFUL') {
+
+                    $electricData = ElectricityBill::create([
+                        'user_id' => $user->id,
+                        'references' => $reference,
+                        'provider_id' => $providerId,
+                        'amount' => $amount,
+                        'phone_no' => $phone,
+                        'meter_no' => $meterNo,
+                        'details' => $response['content']['transactions']['product_name'] ?? 'Electricity Payment',
+                        'token' => $response['purchased_code'] ?? null,
+                    ]);
+
+                    $purchasedToken = $response['purchased_code'] ?? 'N/A';
+                    Transaction::create([
+                        'user_id' => $user->id,
+                        'type' => 'debit',
+                        'references' => $reference,
+                        'amount' => $amount,
+                        'status' => 'success',
+                        'note' => 'Purchase electricity with token: '.$purchasedToken,
+                    ]);
+
+                    return response()->json($electricData, ResponseAlias::HTTP_OK);
+                }
+
+                $user->creditAdd($amount);
+
+                return response()->json(['message' => $response['response_description']], ResponseAlias::HTTP_OK);
+            }
+
+            $user->creditAdd($amount);
+
+            return response()->json(['message' => 'We encountered some problem please try again later'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        return response()->json(['message' => 'Fraud transaction detected!'], ResponseAlias::HTTP_BAD_REQUEST);
     }
 
     public function createNewDataLoan(Request $request)
     {
-        // TODO: Implement createNewDataLoan
-        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+        $user = $request->user();
+        $inputs = $request->all();
+        $ref = 'MobileData_'.now()->timestamp;
+
+        $deviceId = $inputs['device_id'] ?? null;
+        $product = $inputs['product'] ?? null;
+        $code = $inputs['code'] ?? null;
+        $phone = $inputs['phone'] ?? null;
+        $plan = $inputs['plan'] ?? null;
+        $price = (float) ($inputs['price'] ?? 0);
+        $debitCardId = $inputs['debit_card_id'] ?? null;
+
+        $planData = [
+            'references' => $ref,
+            'product' => $product,
+            'code' => $code,
+            'phone_no' => $phone,
+            'customer_reference' => $ref,
+        ];
+
+        $response = ClubConnectService::purchaseMobileDataPlans($planData);
+
+        if ($response['error']) {
+            return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        $status = $response['status'] ?? '';
+        $statusCode = (int) ($response['statuscode'] ?? 0);
+
+        if ($status === 'INVALID_API_ERROR_1' || $status === 'INVALID_API_ERROR_2' || ($statusCode > 0 && $statusCode < 400)) {
+            $loanDurationDays = config('site.loanDuration.data', 14);
+
+            $dataLoan = DataLoan::create([
+                'uuid' => Str::uuid()->toString(),
+                'product' => $product,
+                'phone' => $phone,
+                'plan' => $plan,
+                'code' => $code,
+                'guarantor_email' => $inputs['guarantorEmail'] ?? null,
+                'guarantor_phone_number' => $inputs['guarantorPhoneNumber'] ?? null,
+                'device_id' => $deviceId,
+                'debit_card_id' => $debitCardId,
+                'amount' => $price,
+                'repayment_amount' => $price,
+                'amount_paid' => 0,
+                'due_date' => now()->addDays($loanDurationDays),
+                'user_id' => $user->id,
+                'product_image' => $inputs['product_image'] ?? null,
+            ]);
+
+            $percentage = config('site.loanEarnPercentage', 10); // Fallback to 10%
+            $bonus = ($price * $percentage) / 100;
+
+            if ($bonus >= 50) {
+
+                ClubConnectService::purchaseMobileAirtime([
+                    'product' => $product,
+                    'phone_no' => $phone,
+                    'amount' => $bonus,
+                    'references' => 'LoanBonus-'.now()->timestamp,
+                ]);
+
+                return response()->json([
+                    'message' => 'Data loan received successful Plus a 10% worth of airtime of the amount you borrowed.',
+                ], ResponseAlias::HTTP_OK);
+            }
+
+            return response()->json([
+                'message' => 'Data loan has been processed successfully',
+            ], ResponseAlias::HTTP_OK);
+        }
+
+        return response()->json(['message' => 'We can not process this transaction please try again.'], ResponseAlias::HTTP_BAD_REQUEST);
     }
 
     public function checkDataLoanEligible(Request $request)

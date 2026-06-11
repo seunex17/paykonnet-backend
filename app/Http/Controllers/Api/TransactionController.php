@@ -5,8 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\DebitCard;
 use App\Models\Transaction;
+use App\Models\UssdCard;
 use App\Services\PaystackService;
+use App\Services\UtilityService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
@@ -98,8 +101,60 @@ class TransactionController extends Controller
 
     public function generateUssdCards(Request $request)
     {
-        // TODO: Implement generateUssdCards
-        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+        $user = $request->user();
+        $inputs = $request->all();
+        $qty = (int) ($inputs['quantity'] ?? 1);
+        $service = $inputs['product'] ?? null;
+        $identifier = now()->timestamp.rand(1000, 9999);
+        $amount = (float) ($inputs['amount'] ?? 0);
+        $name = $inputs['service'] ?? null;
+        $code = $inputs['code'] ?? null;
+
+        $toCharge = $amount * $qty;
+
+        if (! Hash::check($inputs['pin'] ?? '', $user->transfer_pin)) {
+            return response()->json(['message' => 'Transaction pin is invalid'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if ($toCharge < 0) {
+            return response()->json(['message' => 'Invalid amount entered'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if (! $user->hasCredits($toCharge)) {
+            return response()->json(['message' => 'Insufficient account balance please refill and try again'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        $user->creditDeduct($toCharge);
+
+        for ($i = 0; $i < $qty; $i++) {
+
+            $cardNumber = UtilityService::generateUniqueCardNumber();
+
+            UssdCard::create([
+                'name' => $name,
+                'number' => $cardNumber,
+                'identifier' => $identifier,
+                'service' => $service,
+                'code' => $code,
+                'amount' => $amount,
+                'quantity' => $qty,
+            ]);
+        }
+
+        Transaction::create([
+            'user_id' => $user->id,
+            'type' => 'debit',
+            'references' => $identifier,
+            'amount' => $toCharge,
+            'status' => 'success',
+            'note' => "Generated {$qty} of paykonet card(s)",
+        ]);
+
+        $cards = UssdCard::where('identifier', $identifier)->get();
+
+        return response()->json([
+            'cards' => $cards,
+        ], 200);
     }
 
     public function loanRepayment(Request $request)

@@ -33,7 +33,7 @@ class PaystackService
         return $response->json();
     }
 
-    public static function resolveBankAccount(array $data): string
+    public static function resolveBankAccount(array $data)
     {
         $response = Http::withToken(config('paystack.secret_key'))
             ->get(self::baseUrl('bank/resolve'), [
@@ -41,10 +41,10 @@ class PaystackService
                 'account_number' => $data['account_no'],
             ]);
 
-        return $response->body();
+        return $response->json();
     }
 
-    public static function createBankTransfer(array $data): string
+    public static function createBankTransfer(array $data)
     {
         $response = Http::withToken(config('paystack.secret_key'))
             ->post(self::baseUrl('transferrecipient'), [
@@ -57,13 +57,13 @@ class PaystackService
                 'currency' => 'NGN',
             ]);
 
-        $result = json_decode($response->body());
+        $result = json_decode($response->json());
 
         if (isset($result->status) && $result->status) {
             return self::initiateTransfer((string) $result->data->recipient_code, (string) $data['amount']);
         }
 
-        return $response->body();
+        return $response->json();
     }
 
     private static function initiateTransfer(string $code, string $amount): string

@@ -14,6 +14,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use App\Models\UssdCard;
 use Random\RandomException;
 
 class UtilityService
@@ -62,5 +63,14 @@ class UtilityService
             2 => ($cost / 100) * 2.5,
             default => ($cost / 100) * 1.5,
         };
+    }
+
+    public static function generateUniqueCardNumber(): string
+    {
+        do {
+            $cardNumber = (string) rand(1000000000000000, 9999999999999999);
+        } while (UssdCard::where('number', $cardNumber)->exists());
+
+        return $cardNumber;
     }
 }
