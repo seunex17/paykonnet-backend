@@ -1,0 +1,11 @@
+[
+{"type":"header","version":"5.2.2","comment":"Export to JSON plugin for PHPMyAdmin"},
+{"type":"database","name":"myzertiq_paykonet"},
+{"type":"table","name":"data_loan_lists","database":"myzertiq_paykonet","data":
+[
+{"id":"2","service_id":"1","name":"2GB Monthly for N1000","code":"M2024","price":"1000"},
+{"id":"3","service_id":"1","name":"5GB Monthly for N2500","code":"5000","price":"2500"},
+{"id":"4","service_id":"1","name":"10GB Monthly for N5000","code":"GIFT8000","price":"5000"}
+]
+}
+]

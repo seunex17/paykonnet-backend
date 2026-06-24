@@ -1,0 +1,18 @@
+[
+{"type":"header","version":"5.2.2","comment":"Export to JSON plugin for PHPMyAdmin"},
+{"type":"database","name":"myzertiq_paykonet"},
+{"type":"table","name":"electric_bill_services","database":"myzertiq_paykonet","data":
+[
+{"id":"1","name":"Ikeja Electricity Distribution Company (IKEDC)","code":"ikeja-electric","created_at":null,"updated_at":null,"deleted_at":null},
+{"id":"2","name":"Eko Electricity Distribution Company (EKEDC)","code":"eko-electric","created_at":null,"updated_at":null,"deleted_at":null},
+{"id":"3","name":"Kano Electricity Distribution Company (KEDCO)","code":"kano-electric","created_at":null,"updated_at":null,"deleted_at":null},
+{"id":"4","name":"Port Harcourt Electricity Distribution Company","code":"portharcourt-electric","created_at":null,"updated_at":null,"deleted_at":null},
+{"id":"5","name":"Joss’s Electricity Distribution Company (JED)","code":"jos-electric","created_at":null,"updated_at":null,"deleted_at":null},
+{"id":"6","name":"Ibadan Electricity Distribution Company (IBEDC)","code":"ibadan-electric","created_at":null,"updated_at":null,"deleted_at":null},
+{"id":"7","name":"Kaduna Electric","code":"kaduna-electric","created_at":null,"updated_at":null,"deleted_at":null},
+{"id":"8","name":"Abuja Electricity Distribution Company (AEDC)","code":"abuja-electric","created_at":null,"updated_at":null,"deleted_at":null},
+{"id":"9","name":"Enugu Electric","code":"enugu-electric","created_at":null,"updated_at":null,"deleted_at":null},
+{"id":"10","name":"Benin Electricity Distribution Company (BEDC)","code":"benin-electric","created_at":null,"updated_at":null,"deleted_at":null}
+]
+}
+]
