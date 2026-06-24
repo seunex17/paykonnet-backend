@@ -86,6 +86,15 @@ class PaystackService
         return $response->json();
     }
 
+    public static function chargeAuthorization(array $data)
+    {
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer '.config('paystack.secret_key'),
+        ])->post(self::baseUrl('transaction/charge_authorization'), $data);
+
+        return $response->json();
+    }
+
     private static function baseUrl(string $param): string
     {
         return self::BASE_URL.$param;

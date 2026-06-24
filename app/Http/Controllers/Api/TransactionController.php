@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\DataLoan;
+use App\Models\DataLoanRepayment;
 use App\Models\DebitCard;
 use App\Models\Transaction;
 use App\Models\UssdCard;
@@ -159,8 +161,80 @@ class TransactionController extends Controller
 
     public function loanRepayment(Request $request)
     {
-        // TODO: Implement loanRepayment
-        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+        $user = $request->user();
+        $inputs = $request->all();
+        $rawAmount = $inputs['amount'] ?? null;
+        $loanId = $inputs['id'] ?? null;
+
+        if (! is_numeric($rawAmount)) {
+            return response()->json(['message' => 'Invalid Amount entered'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        $amountInKobo = (int) ($rawAmount * 100);
+
+        $loan = DataLoan::find($loanId);
+
+        if (! $loan) {
+            return response()->json(['message' => 'Something went wrong'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        $debitCard = DebitCard::find($loan->debit_card_id);
+
+        if (! $debitCard || empty($debitCard->token)) {
+            return response()->json(['message' => 'No valid repayment card token found'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        $reference = 'Loan_'.time();
+
+        $data = [
+            'amount' => $amountInKobo,
+            'authorization_code' => $debitCard->token,
+            'email' => $user->email,
+            'reference' => $reference,
+        ];
+
+        try {
+            $response = PaystackService::chargeAuthorization($data);
+
+            if ($response->successful()) {
+                $paymentResponse = $response->object(); // Returns JSON as a clean PHP Object graph
+
+                if (! empty($paymentResponse['status']) && $paymentResponse->data['status'] === 'success') {
+                    $data = $paymentResponse['data'];
+                    $cardData = $data['authorization'];
+
+                    $amountPaid = (float) ($data->amount / 100);
+
+                    $amountJustPaid = (float) $loan->amount_paid + $amountPaid;
+                    $fullyPaid = $amountJustPaid >= (float) $loan->amount;
+
+                    $loan->update([
+                        'repayment_amount' => max(0, (float) $loan->repayment_amount - $amountPaid),
+                        'amount_paid' => $amountJustPaid,
+                        'fully_paid' => $fullyPaid,
+                    ]);
+
+                    DataLoanRepayment::create([
+                        'user_id' => $user->id,
+                        'data_loan_id' => $loan->id,
+                        'amount' => $amountPaid,
+                    ]);
+
+                    $debitCard->update([
+                        'token' => $cardData->authorization_code,
+                    ]);
+
+                    return response()->json([
+                        'message' => 'Loan repayment has been deducted from your debit card.',
+                    ], ResponseAlias::HTTP_OK);
+                }
+            }
+
+            return response()->json(['message' => 'Loan repayment failed'], 422);
+
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Loan repayment failed'], 422);
+        }
     }
 
     public function cashLoanRepayment(Request $request)

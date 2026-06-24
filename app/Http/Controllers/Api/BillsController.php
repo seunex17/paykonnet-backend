@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AirtimeTopup;
+use App\Models\BettingWalletTopup;
 use App\Models\CableSubscription;
 use App\Models\CashLoan;
 use App\Models\DataLoan;
@@ -15,10 +16,13 @@ use App\Models\SellPayLater;
 use App\Models\SubAgent;
 use App\Models\Transaction;
 use App\Services\ClubConnectService;
+use App\Services\OnesignalService;
+use App\Services\QoreIdService;
 use App\Services\UtilityService;
 use App\Services\VTPassService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
@@ -597,32 +601,247 @@ class BillsController extends Controller
 
     public function checkDataLoanEligible(Request $request)
     {
-        // TODO: Implement checkDataLoanEligible
-        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+        $user = $request->user();
+        $deviceId = $request->input('device_id');
+        $guarantorPhone = $request->input('guarantorPhoneNumber');
+        $loanPhone = $request->input('phone');
+
+        if ((int) $user->agent_level === 1) {
+            return response()->json([
+                'status' => 'ok',
+            ], ResponseAlias::HTTP_OK);
+        }
+
+        $hasUnpaidLoan = DataLoan::where('user_id', $user->id)
+            ->where('fully_paid', false)
+            ->exists();
+
+        if ($hasUnpaidLoan) {
+            return response()->json([
+                'message' => 'We detected that you have an unpaid loan',
+            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $isDeviceLocked = DataLoan::where('device_id', $deviceId)
+            ->where('fully_paid', false)
+            ->exists();
+
+        if ($isDeviceLocked) {
+            return response()->json([
+                'message' => 'You are not eligible for this loan',
+            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if ($guarantorPhone === $loanPhone) {
+            return response()->json([
+                'message' => 'Guarantor phone number can not be the same as loan phone number.',
+            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        return response()->json([
+            'status' => 'ok',
+        ], ResponseAlias::HTTP_OK);
     }
 
     public function verifyBettingCustomer(Request $request)
     {
-        // TODO: Implement verifyBettingCustomer
-        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+        $response = ClubConnectService::verifyBettingCustomerId($request->all());
+
+        if ($response['error']) {
+            return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if (($response['status'] ?? '') === '00') {
+            return response()->json($response, ResponseAlias::HTTP_OK);
+        }
+
+        $errorMessage = $response['customer_name'] ?? 'Invalid customer ID or platform details';
+
+        return response()->json(['message' => $errorMessage], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
     }
 
     public function fundBettingWallet(Request $request)
     {
-        // TODO: Implement fundBettingWallet
-        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+        $user = $request->user();
+        $inputs = $request->all();
+        $reference = 'Betting_'.time();
+        $inputs['references'] = $reference;
+
+        $amount = $inputs['amount'] ?? null;
+        $company = $inputs['company'] ?? null;
+        $customerId = $inputs['customer_id'] ?? null;
+        $pin = $inputs['pin'] ?? null;
+
+        if (! is_numeric($amount)) {
+            return response()->json(['message' => 'Invalid amount entered'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if ((float) $amount < 100) {
+            return response()->json(['message' => 'Minimum amount is N100'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if (! Hash::check($pin, $user->transfer_pin)) {
+            return response()->json(['message' => 'Transaction pin is invalid'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if (! $user->hasCredits($amount)) {
+            return response()->json(['message' => 'Insufficient account balance please refill and try again'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        $user->creditDeduct($amount);
+
+        if ($user->creditBalance() >= 0) {
+            try {
+                $response = ClubConnectService::fundBettingWallet($inputs);
+
+                if ($response['error']) {
+                    return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
+                }
+
+                if (($response['status'] ?? '') === 'ORDER_RECEIVED') {
+                    try {
+                        $notification = [
+                            'contents' => "Hello {$user->firstname}, your {$company} has been funded with {$amount}",
+                            'title' => 'Your Betting Wallet Has Been Refilled.',
+                            'filters' => [
+                                [
+                                    'field' => 'tag',
+                                    'key' => 'uid',
+                                    'relation' => '=',
+                                    'value' => $user->id,
+                                ],
+                            ],
+                        ];
+                        OnesignalService::sendPushNotification($notification);
+                    } catch (\Exception $ne) {
+                        Log::error('Betting Funding Notification Error: '.$ne->getMessage());
+                    }
+
+                    $bettingTxn = BettingWalletTopup::create([
+                        'user_id' => $user->id,
+                        'references' => $reference,
+                        'company' => $company,
+                        'amount' => $amount,
+                        'customer_id' => $customerId,
+                    ]);
+
+                    Transaction::create([
+                        'user_id' => $user->id,
+                        'type' => 'debit',
+                        'references' => $reference,
+                        'amount' => $amount,
+                        'status' => 'success',
+                        'note' => "Fund {$company} betting wallet with {$amount}",
+                    ]);
+
+                    return response()->json($bettingTxn, 200);
+                }
+
+                $user->creditAdd($amount);
+
+                return response()->json(['message' => 'We are currently running some maintenance please try again later.'], ResponseAlias::HTTP_OK);
+
+            } catch (\Exception $e) {
+                $user->creditAdd($amount);
+
+                return response()->json(['message' => 'We encountered some problem please try again later.'], ResponseAlias::HTTP_INTERNAL_SERVER_ERROR);
+            }
+        }
+
+        return response()->json(['message' => 'Fraud transaction detected!'], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
     }
 
     public function checkCashLoanEligible(Request $request)
     {
-        // TODO: Implement checkCashLoanEligible
-        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+        $user = $request->user();
+        $deviceId = $request->input('device_id');
+        $amount = (float) $request->input('amount', 0);
+        $nin = $request->input('nin');
+
+        $hasUnpaidLoan = CashLoan::where('user_id', $user->id)
+            ->where('fully_paid', false)
+            ->exists();
+
+        if ($hasUnpaidLoan) {
+            return response()->json(['message' => 'We detected that you are having an unpaid loan'], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $isDeviceLocked = CashLoan::where('device_id', $deviceId)
+            ->where('fully_paid', false)
+            ->exists();
+
+        if ($isDeviceLocked) {
+            return response()->json(['message' => 'You are not eligible for this loan'], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if ($amount < 1000) {
+            return response()->json(['message' => 'Invalid amount requested!'], ResponseAlias::HTTP_BAD_REQUEST);
+        }
+
+        if ($amount > 10000) {
+            return response()->json(['message' => 'We can not give above 10,000 at the moment'], ResponseAlias::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        $totalSpent = Transaction::where('user_id', $user->id)
+            ->where('type', 'debit')
+            ->sum('amount');
+
+        if ($totalSpent < 50000) {
+            return response()->json(['message' => 'Your account state can not get a loan at the moment.'], ResponseAlias::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        // 6. QoreID Identification Verification Pipeline
+        try {
+            $response = QoreIdService::identification($user, 'nin', $nin);
+            $status = $response['status'] ?? null;
+
+            if (is_numeric($status) && (int) $status > 200) {
+                $errorMessage = $response['message'] ?? 'Identification verification rejected';
+
+                return response()->json(['message' => $errorMessage], ResponseAlias::HTTP_INTERNAL_SERVER_ERROR);
+            }
+
+            if (is_object($status) && isset($status['status']) && $status['status'] === 'id_mismatch') {
+                return response()->json(['message' => 'This provided id does not Match the name of this account.'], ResponseAlias::HTTP_INTERNAL_SERVER_ERROR);
+            }
+
+            return response()->json([
+                'status' => 'ok',
+            ], ResponseAlias::HTTP_OK);
+
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'Verification unavailable'], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+        }
     }
 
     public function createNewCashLoan(Request $request)
     {
-        // TODO: Implement createNewCashLoan
-        return response()->json(['message' => 'Method not implemented'], ResponseAlias::HTTP_NOT_IMPLEMENTED);
+        $user = $request->user();
+        $inputs = $request->all();
+        $amount = (float) ($inputs['amount'] ?? 0);
+        $debitCardId = $inputs['debit_card_id'] ?? null;
+        $ref = 'CashLoan_'.time();
+
+        $user->creditAdd($amount);
+        $loanDurationDays = 30;
+
+        $cashLoan = CashLoan::create([
+            'uuid' => (string) Str::uuid(),
+            'nin' => $inputs['nin'] ?? null,
+            'guarantor_email' => $inputs['guarantorEmail'] ?? null,
+            'guarantor_phone_number' => $inputs['guarantorPhoneNumber'] ?? null,
+            'device_id' => $inputs['device_id'] ?? null,
+            'debit_card_id' => $debitCardId,
+            'amount' => $amount,
+            'repayment_amount' => $amount,
+            'amount_paid' => 0,
+            'due_date' => now()->addDays($loanDurationDays),
+            'user_id' => $user->id,
+        ]);
+
+        return response()->json([
+            'message' => 'Cash loan has been processed successfully!',
+        ], ResponseAlias::HTTP_OK);
     }
 
     public function verifyJambProfileId(Request $request)
