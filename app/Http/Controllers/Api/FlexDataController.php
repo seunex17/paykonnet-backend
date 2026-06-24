@@ -49,14 +49,14 @@ class FlexDataController extends Controller
         $code = $inputs['code'] ?? null;
         $spl = $inputs['spl'] ?? 'no';
 
-        $reference = 'MobileData_' . time();
+        $reference = 'MobileData_'.time();
         $inputs['references'] = $reference;
 
-        if (!is_numeric($amount)) {
+        if (! is_numeric($amount)) {
             return response()->json(['message' => 'Invalid amount entered'], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
-        if (!Hash::check($inputs['pin'] ?? '', $user->transfer_pin)) {
+        if (! Hash::check($inputs['pin'] ?? '', $user->transfer_pin)) {
             return response()->json(['message' => 'Transaction pin is invalid'], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
@@ -74,9 +74,9 @@ class FlexDataController extends Controller
             $network = config("smeplug.CKProductArray.{$productId}");
 
             $requestData = [
-                'network'    => $network,
-                'code'       => $code,
-                'phone_no'   => $phone,
+                'network' => $network,
+                'code' => $code,
+                'phone_no' => $phone,
                 'references' => time(),
             ];
 
@@ -91,53 +91,54 @@ class FlexDataController extends Controller
 
                 if ($status === 'ORDER_RECEIVED' || $status === 'ORDER_PROCESSED' || $status === 'ORDER_COMPLETED') {
 
-                    $desc = ($inputs['service'] ?? '') . " " . ($inputs['plan'] ?? '');
+                    $desc = ($inputs['service'] ?? '').' '.($inputs['plan'] ?? '');
 
                     Transaction::create([
-                        'user_id'    => $user->id,
-                        'type'       => 'debit',
+                        'user_id' => $user->id,
+                        'type' => 'debit',
                         'references' => $reference,
-                        'amount'     => $amount,
-                        'status'     => 'success',
-                        'note'       => "Purchase {$desc} flex data plan",
+                        'amount' => $amount,
+                        'status' => 'success',
+                        'note' => "Purchase {$desc} flex data plan",
                     ]);
 
                     try {
                         $notification = [
                             'contents' => "Hello {$user->firstname}, you have successfully activated the mobile flex data plan of {$desc}",
-                            'title'    => "Activation of Flex Mobile Data Plan",
-                            'filters'  => [
+                            'title' => 'Activation of Flex Mobile Data Plan',
+                            'filters' => [
                                 [
-                                    'field'    => 'tag',
-                                    'key'      => 'uid',
+                                    'field' => 'tag',
+                                    'key' => 'uid',
                                     'relation' => '=',
-                                    'value'    => $user->id,
+                                    'value' => $user->id,
                                 ],
                             ],
                         ];
                         OnesignalService::sendPushNotification($notification);
                     } catch (\Exception $ne) {
-                        \Log::error('Flex Data Notification Error: ' . $ne->getMessage());
+                        \Log::error('Flex Data Notification Error: '.$ne->getMessage());
                     }
 
                     $airtimeProvider = config("smeplug.airtimeProductArray.{$productId}");
 
                     return response()->json([
-                        'references'  => $reference,
+                        'references' => $reference,
                         'provider_id' => $airtimeProvider,
-                        'amount'      => $amount,
-                        'phone_no'    => $phone,
-                        'details'     => "Purchase {$desc} flex data plan",
-                        'plan'        => $inputs['plan'] ?? null,
+                        'amount' => $amount,
+                        'phone_no' => $phone,
+                        'details' => "Purchase {$desc} flex data plan",
+                        'plan' => $inputs['plan'] ?? null,
                     ], 200);
                 }
 
                 $user->creditAdd($amount);
+
                 return response()->json(['message' => 'We encountered some problems please try again'], ResponseAlias::HTTP_BAD_REQUEST);
 
             } catch (\Exception $e) {
                 $user->creditAdd($amount);
-                \Log::error('Flex Data Purchase Global Exception: ' . $e->getMessage());
+                \Log::error('Flex Data Purchase Global Exception: '.$e->getMessage());
 
                 return response()->json(['message' => 'We encountered some problems please try again'], ResponseAlias::HTTP_BAD_REQUEST);
             }

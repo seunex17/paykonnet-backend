@@ -12,6 +12,17 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
+/**
+ * @property int $id
+ * @property string $firstname
+ * @property string $lastname
+ * @property string $email
+ * @property string|null $picture
+ * @property bool $is_active
+ * @property string|null $uuid
+ *
+ * @method \Climactic\Credits\Models\Credit creditAdd(float $amount, ?string $description = null, array $metadata = [])
+ */
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
