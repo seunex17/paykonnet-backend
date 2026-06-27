@@ -10,6 +10,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "barryvdh/laravel-dompdf": "^3.1",
         "climactic/laravel-credits": "^1.4",
         "ichtrojan/laravel-otp": "^2.0",
         "laravel/framework": "^13.8",

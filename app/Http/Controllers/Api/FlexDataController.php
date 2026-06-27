@@ -20,7 +20,7 @@ class FlexDataController extends Controller
         $service = config("smeplug.airtimeProductArray.{$product}");
 
         $plans = FlexDataList::where('service_id', $product)
-            ->where('status', 1)
+            ->where('status', 'active')
             ->get();
 
         $transformedPlans = $plans->map(function (FlexDataList $plan) {
@@ -83,7 +83,7 @@ class FlexDataController extends Controller
             try {
                 $response = ClubConnectService::purchaseMobileDataPlans($requestData);
 
-                if ($response['error']) {
+                if (! empty($response['error'])) {
                     return response()->json(['message' => $response['message']], ResponseAlias::HTTP_BAD_REQUEST);
                 }
 

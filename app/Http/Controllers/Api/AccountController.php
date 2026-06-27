@@ -38,13 +38,15 @@ class AccountController extends Controller
 {
     public function wallets(Request $request)
     {
-        $wallet = Wallet::where('user_id', $request->user()->id)->first();
+        $wallet = Wallet::where('user_id', $request->user()->id)->firstOrCreate([
+            'user_id' => $request->user()->id,
+        ]);
 
         return response()->json([
             'account_number' => $wallet->account_number,
             'bank_name' => $wallet->bank_name,
             'references' => $wallet->references,
-            'main_balance' => $request->user()->creditBalance(),
+            'main_balance' => (string) $request->user()->creditBalance(),
         ], ResponseAlias::HTTP_OK);
     }
 
@@ -90,7 +92,7 @@ class AccountController extends Controller
             ->sum('amount');
 
         return response()->json([
-            'amount' => $owe,
+            'amount' => (int) $owe,
         ], ResponseAlias::HTTP_OK);
     }
 
@@ -140,7 +142,7 @@ class AccountController extends Controller
             Wallet::updateOrCreate(['user_id' => $request->user()->id], [
                 'account_number' => $accountData->account_number,
                 'bank_name' => $accountData->bank_name,
-                'references' => $accountData->references,
+                'references' => $accountData->reference,
             ]);
 
             return response()->json([
@@ -226,14 +228,6 @@ class AccountController extends Controller
 
     public function changeLockscreenPin(Request $request)
     {
-        $otp = (new Otp)->validate($request->user()->email, $request->token);
-
-        if (! $otp->status) {
-            return response()->json([
-                'message' => 'Reset token is invalid',
-            ], ResponseAlias::HTTP_BAD_REQUEST);
-        }
-
         $user = $request->user();
         $user->lockscreen = Hash::make($request->pin);
         $user->save();

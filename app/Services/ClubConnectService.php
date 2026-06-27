@@ -51,6 +51,14 @@ class ClubConnectService
 
         $decoded = $response->json();
 
+        if (isset($decoded['status']) && $decoded['status'] === 'INSUFFICIENT_BALANCE') {
+            return [
+                'error' => true,
+                'status' => 402,
+                'message' => 'We have a problem please try again.',
+            ];
+        }
+
         if (is_null($decoded)) {
             return [
                 'error' => false,

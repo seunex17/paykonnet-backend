@@ -74,7 +74,7 @@ class USSDWebhookController extends Controller
                                 'references' => 'USSD_'.now()->timestamp,
                             ]);
 
-                            if ($response['error']) {
+                            if (! empty($response['error'])) {
                                 $card->update([
                                     'is_valid' => true,
                                     'validated' => now(),

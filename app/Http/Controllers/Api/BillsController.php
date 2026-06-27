@@ -183,7 +183,7 @@ class BillsController extends Controller
 
         $response = ClubConnectService::listMobileDataPlans();
 
-        if ($response['error']) {
+        if (! empty($response['error'])) {
             return response()->json($response['message'], ResponseAlias::HTTP_NOT_FOUND);
         }
 
@@ -259,12 +259,12 @@ class BillsController extends Controller
         if ($spl === 'yes' || $postDebitBalance >= 0) {
             $response = ClubConnectService::purchaseMobileDataPlans($inputs);
 
-            if ($response['error']) {
+            if (! empty($response['error'])) {
                 if ($request->spl == 'no') {
                     $user->creditAdd($amount);
                 }
 
-                return response()->json($response['message'], ResponseAlias::HTTP_OK);
+                return response()->json(['message' => $response['message']], ResponseAlias::HTTP_BAD_REQUEST);
             }
 
             $orderStatus = $response['status'] ?? '';
@@ -314,7 +314,7 @@ class BillsController extends Controller
     {
         $response = VTPassService::getCableTvVariationCode($request->all());
 
-        if ($response['error']) {
+        if (! empty($response['error'])) {
             return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
@@ -325,7 +325,7 @@ class BillsController extends Controller
     {
         $response = VTPassService::verifySmartCardNumber($request->all());
 
-        if ($response['error']) {
+        if (! empty($response['error'])) {
             return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
@@ -374,7 +374,7 @@ class BillsController extends Controller
         if ((float) $user->creditBalance() >= 0) {
             $response = VTPassService::purchaseCableBill($inputs);
 
-            if ($response['error']) {
+            if (! empty($response['error'])) {
                 $user->creditAdd($amount);
 
                 return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
@@ -428,7 +428,7 @@ class BillsController extends Controller
 
         $response = VTPassService::verifyElectricityMeterNumber($inputs);
 
-        if ($response['error']) {
+        if (! empty($response['error'])) {
             return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
@@ -546,7 +546,7 @@ class BillsController extends Controller
 
         $response = ClubConnectService::purchaseMobileDataPlans($planData);
 
-        if ($response['error']) {
+        if (! empty($response['error'])) {
             return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
@@ -647,7 +647,7 @@ class BillsController extends Controller
     {
         $response = ClubConnectService::verifyBettingCustomerId($request->all());
 
-        if ($response['error']) {
+        if (! empty($response['error'])) {
             return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
@@ -694,7 +694,7 @@ class BillsController extends Controller
             try {
                 $response = ClubConnectService::fundBettingWallet($inputs);
 
-                if ($response['error']) {
+                if (! empty($response['error'])) {
                     return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
                 }
 
@@ -882,8 +882,8 @@ class BillsController extends Controller
 
         // 4. Hit the ClubConnect Vendor API Endpoint wrapper
         $response = ClubConnectService::purchaseMobileAirtime($inputs);
-        if (! $request['error']) {
-            return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
+        if (! empty($response['error'])) {
+            return response()->json($response, ResponseAlias::HTTP_BAD_REQUEST);
         }
 
         $user->creditDeduct($amount, 'Purchase Airtime');

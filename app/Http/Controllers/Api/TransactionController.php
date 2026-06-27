@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Mail\GenerateUssdCardMail;
 use App\Models\DataLoan;
 use App\Models\DataLoanRepayment;
 use App\Models\DebitCard;
@@ -10,8 +11,10 @@ use App\Models\Transaction;
 use App\Models\UssdCard;
 use App\Services\PaystackService;
 use App\Services\UtilityService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
@@ -150,11 +153,17 @@ class TransactionController extends Controller
             'amount' => $toCharge,
             'status' => 'success',
             'note' => "Generated {$qty} of paykonet card(s)",
+            'source_table' => 'walet',
         ]);
 
         $cards = UssdCard::where('identifier', $identifier)->get();
+        $pdf = Pdf::loadView('pdf.ussd', ['cards' => $cards]);
+        $output = $pdf->output();
+
+        Mail::to($user->email)->send(new GenerateUssdCardMail($user, $cards, $output));
 
         return response()->json([
+            'message' => 'USSD cards generated and sent to your email successfully',
             'cards' => $cards,
         ], 200);
     }

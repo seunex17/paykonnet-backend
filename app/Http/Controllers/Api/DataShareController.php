@@ -215,7 +215,7 @@ class DataShareController extends Controller
 
         $response = ClubConnectService::purchaseMobileDataPlans($pack);
 
-        if ($response['error']) {
+        if (! empty($response['error'])) {
             return response()->json(['message' => $response['message']], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
         }
 

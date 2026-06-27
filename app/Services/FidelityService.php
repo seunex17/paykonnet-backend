@@ -24,6 +24,9 @@ class FidelityService
     {
         $request_ref = mt_rand(100000000, 999999999);
         $response = Http::withToken(config('fidelity.api_key'))
+            ->withHeaders([
+                'Signature' => md5($request_ref.';'.config('fidelity.secret_key')),
+            ])
             ->post(self::BASE_URL.'transact', [
                 'request_ref' => $request_ref,
                 'request_type' => 'open_account',

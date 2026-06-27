@@ -146,6 +146,7 @@ class AuthController extends Controller
         if (Hash::check($request->pin, $user->lockscreen)) {
             return response()->json([
                 'message' => 'Success',
+                'user_data' => $user,
             ], ResponseAlias::HTTP_OK);
         }
 
