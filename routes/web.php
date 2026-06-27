@@ -12,6 +12,9 @@ Route::get('/test', function () {
     $user = User::find(9);
     $user->creditAdd(2000);
 });
+Route::get('/privacy-policy', function () {
+    return view('privacy');
+});
 
 Route::prefix('/webhook')->group(function () {
     Route::post('/fidelity', [FidelityWebhookController::class, 'handle']);
