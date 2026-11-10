@@ -14,10 +14,10 @@
     }
 
     onMount(() => {
-        isDesktop = window.innerWidth > 768;
+        isDesktop = window.innerWidth > 960;
 
         const handleResize = () => {
-            isDesktop = window.innerWidth > 768;
+            isDesktop = window.innerWidth > 960;
             if (isDesktop) mobileMenuOpen = false;
         };
         window.addEventListener("resize", handleResize);
@@ -73,7 +73,14 @@
                 target="_blank"
                 class="btn-primary">Download →</a
             >
-            <button class="hamburger" on:click={toggleMenu} aria-label="Menu">
+            <button
+                class="hamburger"
+                on:click={toggleMenu}
+                aria-label="Menu"
+                aria-expanded={mobileMenuOpen}
+                aria-controls="mobile-navigation"
+                type="button"
+            >
                 <span></span><span></span><span></span>
             </button>
         </div>
@@ -82,7 +89,7 @@
 
 <!-- MOBILE MENU -->
 {#if mobileMenuOpen}
-    <div class="mobile-menu">
+    <div class="mobile-menu" id="mobile-navigation">
         <a href="#features" on:click={closeMenu}>Features</a>
         <a href="#cards" on:click={closeMenu}>Virtual Cards</a>
         <a href="#loans" on:click={closeMenu}>Loans</a>
@@ -308,7 +315,7 @@
                     Zero fees on transfers to Paykonet users.
                 </div>
                 <div
-                    style="margin-top:20px;display:flex;align-items:center;gap:8px;"
+                    style="margin-top:20px;display:flex;flex-wrap:wrap;align-items:center;gap:8px;"
                 >
                     <div
                         style="background:rgba(255,255,255,0.2);border-radius:100px;padding:5px 14px;font-size:0.75rem;font-weight:600;"
@@ -372,9 +379,7 @@
             </div>
 
             <div class="bento-card wide">
-                <div
-                    style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:center;"
-                >
+                <div class="wallet-preview">
                     <div>
                         <div class="bento-icon">💰</div>
                         <div class="bento-title">Smart Wallet Funding</div>
@@ -974,12 +979,12 @@
     }
     :global(html) {
         scroll-behavior: smooth;
+        scroll-padding-top: 84px;
     }
     :global(body) {
         font-family: "Inter", sans-serif;
         background: var(--color-bg);
         color: var(--color-text);
-        overflow-x: hidden;
         transition:
             background 0.3s,
             color 0.3s;
@@ -1056,7 +1061,7 @@
         color: var(--color-violet);
     }
 
-    @media (max-width: 768px) {
+    @media (max-width: 960px) {
         .nav-links {
             display: none;
         }
@@ -1112,11 +1117,14 @@
         flex-direction: column;
         gap: 5px;
         cursor: pointer;
-        padding: 6px;
+        padding: 11px;
+        min-width: 44px;
+        min-height: 44px;
+        justify-content: center;
         border: none;
         background: none;
     }
-    @media (max-width: 768px) {
+    @media (max-width: 960px) {
         .hamburger {
             display: flex;
         }
@@ -1133,6 +1141,8 @@
     .mobile-menu {
         position: fixed;
         top: 68px;
+        max-height: calc(100dvh - 68px);
+        overflow-y: auto;
         left: 0;
         right: 0;
         background: var(--color-surface);
@@ -1185,7 +1195,7 @@
         margin: 0 auto;
         width: 100%;
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 60px;
         align-items: center;
     }
@@ -1292,6 +1302,9 @@
 
     /* PHONE */
     .phone-wrap {
+        width: 100%;
+        max-width: 360px;
+        margin: 0 auto;
         position: relative;
         display: flex;
         justify-content: center;
@@ -1485,17 +1498,17 @@
     }
     .float-card-1 {
         top: 40px;
-        left: -70px;
+        left: 0;
         animation: float 6s ease-in-out 1s infinite;
     }
     .float-card-2 {
         bottom: 80px;
-        right: -60px;
+        right: 0;
         animation: float 6s ease-in-out 3s infinite;
     }
     .float-card-3 {
         top: 200px;
-        left: -80px;
+        left: 0;
         animation: float 6s ease-in-out 2s infinite;
     }
 
@@ -1530,11 +1543,11 @@
 
     @media (max-width: 900px) {
         .float-card-1 {
-            left: -20px;
+            left: 0;
             top: 20px;
         }
         .float-card-2 {
-            right: -20px;
+            right: 0;
             bottom: 40px;
         }
         .float-card-3 {
@@ -1615,13 +1628,13 @@
     /* BENTO */
     .bento-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 16px;
         margin-top: 60px;
     }
     @media (max-width: 900px) {
         .bento-grid {
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
     }
     @media (max-width: 580px) {
@@ -1695,7 +1708,7 @@
     }
     .cards-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 60px;
         align-items: center;
         margin-top: 0;
@@ -1811,7 +1824,7 @@
     /* LOAN */
     .loan-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 60px;
         align-items: center;
         margin-top: 60px;
@@ -1853,7 +1866,7 @@
 
     .loan-amounts {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         gap: 12px;
         margin-top: 20px;
     }
@@ -1912,13 +1925,13 @@
     /* TESTIMONIALS */
     .testimonials-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 20px;
         margin-top: 60px;
     }
     @media (max-width: 900px) {
         .testimonials-grid {
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
     }
     @media (max-width: 580px) {
@@ -2079,7 +2092,7 @@
     }
     @media (max-width: 800px) {
         .footer-inner {
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
         }
     }
     @media (max-width: 480px) {
@@ -2155,6 +2168,81 @@
         background: var(--color-violet);
         color: #fff;
         border-color: transparent;
+    }
+
+    .wallet-preview {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+        align-items: center;
+    }
+
+    .hero-inner > div,
+    .bento-card,
+    .cards-grid > div,
+    .loan-grid > div {
+        min-width: 0;
+    }
+
+    @media (max-width: 580px) {
+        section {
+            padding: 64px 16px;
+        }
+        .hero {
+            padding: 100px 16px 60px;
+        }
+        .nav-inner {
+            padding: 0 16px;
+            gap: 12px;
+        }
+        .bento-card.wide {
+            grid-column: auto;
+        }
+        .wallet-preview {
+            grid-template-columns: minmax(0, 1fr);
+        }
+        .bento-card,
+        .loan-visual {
+            padding: 20px;
+        }
+        h1.hero-title {
+            font-size: clamp(2rem, 9vw, 2.6rem);
+        }
+        .hero-stats {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+        }
+        .stat-divider {
+            display: none;
+        }
+        .stat-item h3 {
+            font-size: 1.3rem;
+        }
+        .stat-item p {
+            font-size: 0.72rem;
+        }
+        .vc-stack {
+            width: 100%;
+            max-width: 360px;
+            margin: 0 auto;
+        }
+        .vc {
+            width: calc(100% - 48px);
+            max-width: 280px;
+        }
+        .vc-usd {
+            left: 12px;
+        }
+        .vc-ngn {
+            left: 32px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .nav-inner .btn-primary {
+            display: none;
+        }
     }
 
     /* SCROLL REVEAL */
