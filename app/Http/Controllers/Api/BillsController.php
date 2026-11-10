@@ -17,9 +17,11 @@ use App\Models\SubAgent;
 use App\Models\Transaction;
 use App\Services\ClubConnectService;
 use App\Services\OnesignalService;
+use App\Services\PurchaseProviderService;
 use App\Services\QoreIdService;
 use App\Services\UtilityService;
 use App\Services\VTPassService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -206,7 +208,7 @@ class BillsController extends Controller
     {
         $user = $request->user();
         $inputs = $request->all();
-        $reference = 'MobileData_'.time();
+        $reference = 'MobileData_'.Str::uuid();
         $inputs['references'] = $reference;
 
         $originalAmount = $inputs['amount'] ?? null;
@@ -215,6 +217,10 @@ class BillsController extends Controller
         $spl = $inputs['spl'] ?? 'no';
         $productId = $inputs['product'] ?? null;
         $plan = $inputs['plan'] ?? null;
+
+        if (! in_array($spl, ['yes', 'no'], true)) {
+            return response()->json(['message' => 'Invalid payment option'], 400);
+        }
 
         if (! is_numeric($originalAmount)) {
             return response()->json(['message' => 'Invalid amount entered'], ResponseAlias::HTTP_BAD_REQUEST);
@@ -234,7 +240,7 @@ class BillsController extends Controller
             return response()->json(['message' => 'Transaction pin is invalid'], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
-        if ($amount < 0) {
+        if ($amount <= 0) {
             return response()->json(['message' => 'Invalid amount entered'], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
@@ -257,11 +263,15 @@ class BillsController extends Controller
         $postDebitBalance = (float) $user->creditBalance();
 
         if ($spl === 'yes' || $postDebitBalance >= 0) {
-            $response = ClubConnectService::purchaseMobileDataPlans($inputs);
+            $response = PurchaseProviderService::call($user, (float) $amount, $reference, fn (): array => ClubConnectService::purchaseMobileDataPlans($inputs));
+
+            if ($response instanceof JsonResponse) {
+                return $response;
+            }
 
             if (! empty($response['error'])) {
-                if ($request->spl == 'no') {
-                    $user->creditAdd($amount);
+                if ($spl === 'no') {
+                    $user->creditAdd($amount, 'Purchase refund', ['reference' => $reference]);
                 }
 
                 return response()->json(['message' => $response['message']], ResponseAlias::HTTP_BAD_REQUEST);
@@ -301,7 +311,7 @@ class BillsController extends Controller
             }
 
             if ($spl === 'no') {
-                $user->creditAdd($amount);
+                $user->creditAdd($amount, 'Purchase refund', ['reference' => $reference]);
             }
 
             return response()->json(['message' => 'We encountered some problems please try again'], 422);
@@ -342,7 +352,7 @@ class BillsController extends Controller
     {
         $user = $request->user();
         $inputs = $request->all();
-        $reference = 'Cable_'.now()->timestamp;
+        $reference = now()->timezone('Africa/Lagos')->format('YmdHi').random_int(100000000000, 999999999999);
         $inputs['references'] = $reference;
 
         $amount = $inputs['price'] ?? null;
@@ -361,7 +371,7 @@ class BillsController extends Controller
             return response()->json(['message' => 'Transaction pin is invalid'], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
-        if ((float) $amount < 0) {
+        if ((float) $amount <= 0) {
             return response()->json(['message' => 'Invalid amount entered'], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
@@ -372,22 +382,26 @@ class BillsController extends Controller
         $user->creditDeduct($amount);
 
         if ((float) $user->creditBalance() >= 0) {
-            $response = VTPassService::purchaseCableBill($inputs);
+            $response = PurchaseProviderService::call($user, (float) $amount, $reference, fn (): array => VTPassService::purchaseCableBill($inputs));
+
+            if ($response instanceof JsonResponse) {
+                return $response;
+            }
 
             if (! empty($response['error'])) {
-                $user->creditAdd($amount);
+                $user->creditAdd($amount, 'Purchase refund', ['reference' => $reference]);
 
                 return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
             }
 
             if (($response['code'] ?? '') !== '000') {
-                $user->creditAdd($amount);
+                $user->creditAdd($amount, 'Purchase refund', ['reference' => $reference]);
 
                 return response()->json(['message' => 'We are having problems processing this request please try again later.'], ResponseAlias::HTTP_BAD_REQUEST);
             }
 
             if (($response['response_description'] ?? '') !== 'TRANSACTION SUCCESSFUL') {
-                $user->creditAdd($amount);
+                $user->creditAdd($amount, 'Purchase refund', ['reference' => $reference]);
 
                 return response()->json(['message' => $response['response_description']], ResponseAlias::HTTP_BAD_REQUEST);
             }
@@ -445,7 +459,7 @@ class BillsController extends Controller
     {
         $user = $request->user();
         $inputs = $request->all();
-        $reference = 'Electricity_'.now()->timestamp;
+        $reference = now()->timezone('Africa/Lagos')->format('YmdHi').random_int(100000000000, 999999999999);
         $inputs['request_id'] = $reference;
 
         $amount = $inputs['amount'] ?? null;
@@ -462,7 +476,7 @@ class BillsController extends Controller
             return response()->json(['message' => 'Transaction pin is invalid'], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
-        if ((float) $amount < 0) {
+        if ((float) $amount <= 0) {
             return response()->json(['message' => 'Invalid amount entered'], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
@@ -480,7 +494,11 @@ class BillsController extends Controller
         $user->creditDeduct($amount);
 
         if ($user->creditBalance() >= 0) {
-            $response = VTPassService::purchaseElectricity($inputs);
+            $response = PurchaseProviderService::call($user, (float) $amount, $reference, fn (): array => VTPassService::purchaseElectricity($inputs));
+
+            if ($response instanceof JsonResponse) {
+                return $response;
+            }
 
             if (isset($response['content']['transactions'])) {
                 if (($response['response_description'] ?? '') === 'TRANSACTION SUCCESSFUL') {
@@ -509,12 +527,12 @@ class BillsController extends Controller
                     return response()->json($electricData, ResponseAlias::HTTP_OK);
                 }
 
-                $user->creditAdd($amount);
+                $user->creditAdd($amount, 'Purchase refund', ['reference' => $reference]);
 
                 return response()->json(['message' => $response['response_description']], ResponseAlias::HTTP_OK);
             }
 
-            $user->creditAdd($amount);
+            $user->creditAdd($amount, 'Purchase refund', ['reference' => $reference]);
 
             return response()->json(['message' => 'We encountered some problem please try again later'], ResponseAlias::HTTP_BAD_REQUEST);
         }
@@ -664,7 +682,7 @@ class BillsController extends Controller
     {
         $user = $request->user();
         $inputs = $request->all();
-        $reference = 'Betting_'.time();
+        $reference = 'Betting_'.Str::uuid();
         $inputs['references'] = $reference;
 
         $amount = $inputs['amount'] ?? null;
@@ -691,61 +709,61 @@ class BillsController extends Controller
         $user->creditDeduct($amount);
 
         if ($user->creditBalance() >= 0) {
-            try {
-                $response = ClubConnectService::fundBettingWallet($inputs);
+            $response = PurchaseProviderService::call($user, (float) $amount, $reference, fn (): array => ClubConnectService::fundBettingWallet($inputs));
 
-                if (! empty($response['error'])) {
-                    return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
-                }
-
-                if (($response['status'] ?? '') === 'ORDER_RECEIVED') {
-                    try {
-                        $notification = [
-                            'contents' => "Hello {$user->firstname}, your {$company} has been funded with {$amount}",
-                            'title' => 'Your Betting Wallet Has Been Refilled.',
-                            'filters' => [
-                                [
-                                    'field' => 'tag',
-                                    'key' => 'uid',
-                                    'relation' => '=',
-                                    'value' => $user->id,
-                                ],
-                            ],
-                        ];
-                        OnesignalService::sendPushNotification($notification);
-                    } catch (\Exception $ne) {
-                        Log::error('Betting Funding Notification Error: '.$ne->getMessage());
-                    }
-
-                    $bettingTxn = BettingWalletTopup::create([
-                        'user_id' => $user->id,
-                        'references' => $reference,
-                        'company' => $company,
-                        'amount' => $amount,
-                        'customer_id' => $customerId,
-                    ]);
-
-                    Transaction::create([
-                        'user_id' => $user->id,
-                        'type' => 'debit',
-                        'references' => $reference,
-                        'amount' => $amount,
-                        'status' => 'success',
-                        'note' => "Fund {$company} betting wallet with {$amount}",
-                    ]);
-
-                    return response()->json($bettingTxn, 200);
-                }
-
-                $user->creditAdd($amount);
-
-                return response()->json(['message' => 'We are currently running some maintenance please try again later.'], ResponseAlias::HTTP_OK);
-
-            } catch (\Exception $e) {
-                $user->creditAdd($amount);
-
-                return response()->json(['message' => 'We encountered some problem please try again later.'], ResponseAlias::HTTP_INTERNAL_SERVER_ERROR);
+            if ($response instanceof JsonResponse) {
+                return $response;
             }
+
+            if (! empty($response['error'])) {
+                $user->creditAdd($amount, 'Purchase refund', ['reference' => $reference]);
+
+                return response()->json($response['message'], ResponseAlias::HTTP_BAD_REQUEST);
+            }
+
+            if (($response['status'] ?? '') === 'ORDER_RECEIVED') {
+                try {
+                    $notification = [
+                        'contents' => "Hello {$user->firstname}, your {$company} has been funded with {$amount}",
+                        'title' => 'Your Betting Wallet Has Been Refilled.',
+                        'filters' => [
+                            [
+                                'field' => 'tag',
+                                'key' => 'uid',
+                                'relation' => '=',
+                                'value' => $user->id,
+                            ],
+                        ],
+                    ];
+                    OnesignalService::sendPushNotification($notification);
+                } catch (\Exception $ne) {
+                    Log::error('Betting Funding Notification Error: '.$ne->getMessage());
+                }
+
+                $bettingTxn = BettingWalletTopup::create([
+                    'user_id' => $user->id,
+                    'references' => $reference,
+                    'company' => $company,
+                    'amount' => $amount,
+                    'customer_id' => $customerId,
+                ]);
+
+                Transaction::create([
+                    'user_id' => $user->id,
+                    'type' => 'debit',
+                    'references' => $reference,
+                    'amount' => $amount,
+                    'status' => 'success',
+                    'note' => "Fund {$company} betting wallet with {$amount}",
+                ]);
+
+                return response()->json($bettingTxn, 200);
+            }
+
+            $user->creditAdd($amount, 'Purchase refund', ['reference' => $reference]);
+
+            return response()->json(['message' => 'We are currently running some maintenance please try again later.'], ResponseAlias::HTTP_OK);
+
         }
 
         return response()->json(['message' => 'Fraud transaction detected!'], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
@@ -860,7 +878,7 @@ class BillsController extends Controller
     {
         $user = $request->user();
         $inputs = $request->all();
-        $reference = 'Airtime_'.now()->timestamp;
+        $reference = 'Airtime_'.Str::uuid();
         $inputs['references'] = $reference;
 
         $amount = $inputs['amount'] ?? null;
@@ -868,7 +886,7 @@ class BillsController extends Controller
         $pin = $inputs['pin'] ?? null;
         $productId = $inputs['product'] ?? null;
 
-        if (! is_numeric($amount)) {
+        if (! is_numeric($amount) || (float) $amount <= 0) {
             return response()->json(['message' => 'Invalid amount entered'], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
@@ -880,13 +898,19 @@ class BillsController extends Controller
             return response()->json(['message' => 'Insufficient account balance please refill and try again'], ResponseAlias::HTTP_BAD_REQUEST);
         }
 
-        // 4. Hit the ClubConnect Vendor API Endpoint wrapper
-        $response = ClubConnectService::purchaseMobileAirtime($inputs);
+        $user->creditDeduct($amount, 'Purchase Airtime');
+
+        $response = PurchaseProviderService::call($user, (float) $amount, $reference, fn (): array => ClubConnectService::purchaseMobileAirtime($inputs));
+
+        if ($response instanceof JsonResponse) {
+            return $response;
+        }
         if (! empty($response['error'])) {
+            $user->creditAdd($amount, 'Purchase refund', ['reference' => $reference]);
+
             return response()->json($response, ResponseAlias::HTTP_BAD_REQUEST);
         }
 
-        $user->creditDeduct($amount, 'Purchase Airtime');
         $orderStatus = $response['status'] ?? '';
 
         if (in_array($orderStatus, ['ORDER_RECEIVED', 'ORDER_PROCESSED', 'ORDER_COMPLETED'])) {
@@ -909,7 +933,7 @@ class BillsController extends Controller
 
             return response()->json($airtimeTxn, ResponseAlias::HTTP_OK);
         }
-        $user->creditAdd($amount);
+        $user->creditAdd($amount, 'Purchase refund', ['reference' => $reference]);
 
         return response()->json(['message' => 'We encountered some problems please try again'], ResponseAlias::HTTP_BAD_REQUEST);
     }

@@ -129,6 +129,7 @@ class ClubConnectService
             'BettingCompany' => $data['code'],
             'CustomerID' => $data['customer_id'],
             'Amount' => $data['amount'],
+            'RequestID' => $data['references'],
         ]);
     }
 }
