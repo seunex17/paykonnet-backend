@@ -69,13 +69,13 @@
                     <td class="voucher-cell">
                         <div class="voucher-box">
                             <div class="provider">{{ $card->name }}</div>
-                            <div class="amount">VALUE: ₦{{ number_format($card->amount, 2) }}</div>
+                            <div class="amount">{{ $productName }}</div>
                             <div class="pin">PIN: {{ $card->number }}</div>
                             <div class="details">
                                 Identifier: {{ $card->identifier }} <br>
                                 Service: {{ $card->service }} ({{ $card->code }}) <br>
-                                Generated: {{ $card->created_at->format('d-M-Y H:i') }}
-                                To use dial: *347*2200#
+                                Generated: {{ $card->created_at->format('d-M-Y H:i') }} <br>
+                                To use dial: *347*2200*PIN#
                             </div>
                         </div>
                     </td>

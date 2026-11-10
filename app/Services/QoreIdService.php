@@ -42,7 +42,7 @@ class QoreIdService
     public static function accessToken()
     {
         $request = Http::post(self::BASE_URL.'token', [
-            'client_id' => config('qoreid.client_id'),
+            'clientid' => config('qoreid.client_id'),
             'secret' => config('qoreid.secret'),
         ]);
 

@@ -114,6 +114,7 @@ class TransactionController extends Controller
         $amount = (float) ($inputs['amount'] ?? 0);
         $name = $inputs['service'] ?? null;
         $code = $inputs['code'] ?? null;
+        $productName = $inputs['product_name'] ?? null;
 
         $toCharge = $amount * $qty;
 
@@ -157,7 +158,7 @@ class TransactionController extends Controller
         ]);
 
         $cards = UssdCard::where('identifier', $identifier)->get();
-        $pdf = Pdf::loadView('pdf.ussd', ['cards' => $cards]);
+        $pdf = Pdf::loadView('pdf.ussd', ['cards' => $cards, 'productName' => $productName]);
         $output = $pdf->output();
 
         Mail::to($user->email)->send(new GenerateUssdCardMail($user, $cards, $output));

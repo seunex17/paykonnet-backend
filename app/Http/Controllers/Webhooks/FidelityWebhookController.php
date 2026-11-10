@@ -58,6 +58,7 @@ class FidelityWebhookController extends Controller
                     'amount' => $amount,
                     'status' => 'success',
                     'note' => 'Wallet funding',
+                    'source_table' => 'transactions',
                 ]);
             }
         }

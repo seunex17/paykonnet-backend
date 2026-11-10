@@ -38,7 +38,7 @@ class USSDWebhookController extends Controller
             $card = UssdCard::where('number', $text)->first();
 
             if ($card) {
-                if (! $card->is_valid) {
+                if ($card->is_valid) {
 
                     $mtnArray = ['803', '703', '903', '806', '706', '813', '810', '814', '816'];
                     $gloArray = ['805', '705', '905', '807', '815', '811', '906'];
@@ -74,10 +74,10 @@ class USSDWebhookController extends Controller
                                 'references' => 'USSD_'.now()->timestamp,
                             ]);
 
-                            if (! empty($response['error'])) {
+                            if (empty($response['error'])) {
                                 $card->update([
-                                    'is_valid' => true,
-                                    'validated' => now(),
+                                    'is_valid' => false,
+                                    'validated' => true,
                                 ]);
 
                                 return 'END Recharge Successful';

@@ -116,7 +116,7 @@ class AuthController extends Controller
             ], ResponseAlias::HTTP_NOT_FOUND);
         }
 
-        $otp = (new Otp)->generate($user->email, 'numeric', 6, 120);
+        $otp = (new Otp)->generate($user->email, 'numeric', 4, 120);
         Mail::to($user->email)->send(new VerifyEmailMail($otp->token));
 
         return response()->json([

@@ -909,6 +909,7 @@ class BillsController extends Controller
 
             return response()->json($airtimeTxn, ResponseAlias::HTTP_OK);
         }
+        $user->creditAdd($amount);
 
         return response()->json(['message' => 'We encountered some problems please try again'], ResponseAlias::HTTP_BAD_REQUEST);
     }
